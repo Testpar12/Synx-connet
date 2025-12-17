@@ -31,13 +31,13 @@ function FtpConnections() {
     rootPath: '/',
   });
 
-  if (loading) {
-    return <FullPageLoader label="Loading connections..." />;
-  }
-
   useEffect(() => {
     fetchConnections();
   }, []);
+
+  if (loading) {
+    return <FullPageLoader label="Loading connections..." />;
+  }
 
   const fetchConnections = async () => {
     try {

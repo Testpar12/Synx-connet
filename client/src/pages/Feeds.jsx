@@ -18,13 +18,13 @@ function Feeds() {
   const [feeds, setFeeds] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  if (loading) {
-    return <FullPageLoader label="Loading feeds..." />;
-  }
-
   useEffect(() => {
     fetchFeeds();
   }, []);
+
+  if (loading) {
+    return <FullPageLoader label="Loading feeds..." />;
+  }
 
   const fetchFeeds = async () => {
     try {

@@ -109,6 +109,10 @@ function FeedEdit() {
     }
   };
 
+  if (loading) {
+    return <FullPageLoader label="Loading feed configuration..." />;
+  }
+
   // Fetch CSV headers from FTP file
   const fetchCsvHeaders = async () => {
     if (!formData.ftpConnection || !formData.file.path) {
@@ -566,9 +570,7 @@ function FeedEdit() {
       </BlockStack>
     </Card>
   );
-  if (loading) {
-    return <FullPageLoader label="Loading feed configuration..." />;
-  }
+
 
   return (
     <Page

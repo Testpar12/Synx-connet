@@ -5,6 +5,7 @@ import { Provider } from '@shopify/app-bridge-react';
 import '@shopify/polaris/build/esm/styles.css';
 import Router from './Router';
 import Navigation from './components/Navigation';
+import FullPageLoader from './components/FullPageLoader';
 
 function AppContent() {
   return (
@@ -47,7 +48,11 @@ function App() {
   }, []);
 
   if (!config) {
-    return <div>Loading...</div>;
+    return (
+      <PolarisProvider i18n={{}}>
+        <FullPageLoader label="Initializing Synx..." />
+      </PolarisProvider>
+    );
   }
 
   return (

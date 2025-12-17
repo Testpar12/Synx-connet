@@ -87,6 +87,13 @@ function FeedDetail() {
     }
   };
 
+  useEffect(() => {
+    fetchFeed();
+    fetchJobs();
+  }, [id]);
+
+  // ... (fetch functions)
+
   if (loading || !feed) {
     return <FullPageLoader label="Loading feed details..." />;
   }
