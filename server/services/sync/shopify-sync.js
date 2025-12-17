@@ -57,14 +57,11 @@ class ShopifySync {
     `;
 
     try {
-      const response = await client.query({
-        data: {
-          query,
-          variables: { handle },
-        },
+      const response = await client.request(query, {
+        variables: { handle },
       });
 
-      return response.body.data.productByHandle;
+      return response.data.productByHandle;
     } catch (error) {
       logger.error('Error finding product by handle:', error);
       throw error;
@@ -114,14 +111,11 @@ class ShopifySync {
     `;
 
     try {
-      const response = await client.query({
-        data: {
-          query,
-          variables: { query: `sku:${sku}` },
-        },
+      const response = await client.request(query, {
+        variables: { query: `sku:${sku}` },
       });
 
-      const products = response.body.data.products.edges;
+      const products = response.data.products.edges;
       return products.length > 0 ? products[0].node : null;
     } catch (error) {
       logger.error('Error finding product by SKU:', error);
@@ -179,14 +173,11 @@ class ShopifySync {
     }
 
     try {
-      const response = await client.query({
-        data: {
-          query: createMutation,
-          variables: { input },
-        },
+      const response = await client.request(createMutation, {
+        variables: { input },
       });
 
-      const { product, userErrors } = response.body.data.productCreate;
+      const { product, userErrors } = response.data.productCreate;
 
       if (userErrors && userErrors.length > 0) {
         throw new Error(
@@ -240,17 +231,14 @@ class ShopifySync {
       },
     ];
 
-    const response = await client.query({
-      data: {
-        query: mutation,
-        variables: {
-          productId,
-          variants,
-        },
+    const response = await client.request(mutation, {
+      variables: {
+        productId,
+        variants,
       },
     });
 
-    const { userErrors } = response.body.data.productVariantsBulkUpdate;
+    const { userErrors } = response.data.productVariantsBulkUpdate;
 
     if (userErrors && userErrors.length > 0) {
       throw new Error(
@@ -304,14 +292,11 @@ class ShopifySync {
     }
 
     try {
-      const response = await client.query({
-        data: {
-          query: mutation,
-          variables: { input },
-        },
+      const response = await client.request(mutation, {
+        variables: { input },
       });
 
-      const { product, userErrors } = response.body.data.productUpdate;
+      const { product, userErrors } = response.data.productUpdate;
 
       if (userErrors && userErrors.length > 0) {
         throw new Error(
@@ -359,13 +344,19 @@ class ShopifySync {
       }
     `;
 
-    const metafieldInputs = metafields.map((meta) => ({
-      ownerId: productId,
-      namespace: meta.namespace,
-      key: meta.key,
-      value: meta.value !== null ? meta.value.toString() : '',
-      type: meta.type,
-    }));
+    const metafieldInputs = metafields
+      .filter((meta) => meta.value !== null && meta.value !== '')
+      .map((meta) => ({
+        ownerId: productId,
+        namespace: meta.namespace,
+        key: meta.key,
+        value: meta.value.toString(),
+        type: meta.type,
+      }));
+
+    if (metafieldInputs.length === 0) {
+      return [];
+    }
 
     // Shopify limit is 25 per request
     const chunkSize = 25;
@@ -375,15 +366,12 @@ class ShopifySync {
       const chunk = metafieldInputs.slice(i, i + chunkSize);
 
       try {
-        const response = await client.query({
-          data: {
-            query: mutation,
-            variables: { metafields: chunk },
-          },
+        const response = await client.request(mutation, {
+          variables: { metafields: chunk },
         });
 
         const { metafields: setMetafields, userErrors } =
-          response.body.data.metafieldsSet;
+          response.data.metafieldsSet;
 
         if (userErrors && userErrors.length > 0) {
           logger.warn(
@@ -450,17 +438,14 @@ class ShopifySync {
     }));
 
     try {
-      const response = await client.query({
-        data: {
-          query: mutation,
-          variables: {
-            productId,
-            media: mediaInputs,
-          },
+      const response = await client.request(mutation, {
+        variables: {
+          productId,
+          media: mediaInputs,
         },
       });
 
-      const { media, userErrors } = response.body.data.productCreateMedia;
+      const { media, userErrors } = response.data.productCreateMedia;
 
       if (userErrors && userErrors.length > 0) {
         logger.warn(
