@@ -181,6 +181,7 @@ router.post('/', validate(createFeedSchema), async (req, res) => {
     // Calculate next run if schedule enabled
     if (feed.schedule?.enabled) {
       feed.calculateNextRun();
+      feed.status = 'active';
     }
 
     await feed.save();
@@ -221,8 +222,16 @@ router.put('/:id', validate(createFeedSchema), async (req, res) => {
     // Recalculate next run if schedule changed
     if (feed.schedule?.enabled) {
       feed.calculateNextRun();
+      // Auto-activate feed if schedule is enabled
+      if (feed.status === 'draft' || feed.status === 'paused') {
+        feed.status = 'active';
+      }
     } else {
       feed.nextRunAt = null;
+      // If manually disabled, set to paused (unless it was draft)
+      if (feed.status === 'active') {
+        feed.status = 'paused';
+      }
     }
 
     await feed.save();
