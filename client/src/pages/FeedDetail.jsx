@@ -23,15 +23,22 @@ function FeedDetail() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchFeed = async () => {
     try {
       const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/feeds/${id}?shop=${shop}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch feed details');
+      }
+
       const data = await response.json();
       setFeed(data.feed);
     } catch (error) {
       console.error('Error fetching feed:', error);
+      setError('Failed to load feed');
     } finally {
       setLoading(false);
     }
@@ -52,10 +59,6 @@ function FeedDetail() {
     fetchFeed();
     fetchJobs();
   }, [id]);
-
-  if (loading || !feed) {
-    return <FullPageLoader label="Loading feed details..." />;
-  }
 
   const handleProcess = async () => {
     setProcessing(true);
@@ -91,15 +94,17 @@ function FeedDetail() {
     }
   };
 
-  useEffect(() => {
-    fetchFeed();
-    fetchJobs();
-  }, [id]);
-
-  // ... (fetch functions)
-
-  if (loading || !feed) {
+  if (loading) {
     return <FullPageLoader label="Loading feed details..." />;
+  }
+
+  if (error || !feed) {
+    return (
+      <Page title="Error">
+        <Text tone="critical">{error || 'Feed not found'}</Text>
+        <Button onClick={() => navigate('/feeds')}>Back to Feeds</Button>
+      </Page>
+    );
   }
 
   const tabs = [
@@ -179,7 +184,7 @@ function FeedDetail() {
                     Matching Column
                   </Text>
                   <Text>
-                    {feed.matching.column} ({feed.matching.type})
+                    {feed.matching?.column || '-'} ({feed.matching?.type || '-'})
                   </Text>
                 </BlockStack>
 
@@ -221,7 +226,7 @@ function FeedDetail() {
                   <Text variant="headingSm" tone="subdued">
                     File Path
                   </Text>
-                  <Text>{feed.file.path}</Text>
+                  <Text>{feed.file?.path || '-'}</Text>
                 </BlockStack>
 
                 <BlockStack gap="200">
