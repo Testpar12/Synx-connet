@@ -194,4 +194,14 @@ router.post('/uninstall', async (req, res) => {
   }
 });
 
+/**
+ * Get public config
+ * Returns public configuration for frontend
+ */
+router.get('/config', (req, res) => {
+  res.json({
+    apiKey: process.env.SHOPIFY_API_KEY,
+  });
+});
+
 export default router;
