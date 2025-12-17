@@ -33,11 +33,24 @@ class MappingEngine {
         mapping.transform || {}
       );
 
+      // Debug logging for Metafield mapping
+      if (mapping.fieldType === 'metafield') {
+        const hasColumn = Object.prototype.hasOwnProperty.call(csvRow, mapping.csvColumn);
+        if (!hasColumn) {
+          logger.warn(`Mapping Engine: Column '${mapping.csvColumn}' not found in CSV row. Available keys: ${Object.keys(csvRow).join(', ')}`);
+        }
+
+        logger.info(`Mapping Engine: Processing metafield '${mapping.metafieldKey}' from column '${mapping.csvColumn}'. Raw value: '${csvValue}'`);
+      }
+
       // Skip if value is empty and ignoreEmpty is true
       if (
         mapping.transform?.ignoreEmpty &&
         this.isEmpty(transformedValue)
       ) {
+        if (mapping.fieldType === 'metafield') {
+          logger.info(`Mapping Engine: Skipping empty metafield '${mapping.metafieldKey}' (Raw: '${csvValue}')`);
+        }
         return;
       }
 
@@ -49,15 +62,23 @@ class MappingEngine {
           transformedValue
         );
       } else if (mapping.fieldType === 'metafield') {
+        const formattedValue = this.formatMetafieldValue(
+          transformedValue,
+          mapping.metafieldType
+        );
+
+        if (formattedValue === null) {
+          logger.warn(`Mapping Engine: Metafield '${mapping.metafieldKey}' formatted to NULL from value '${transformedValue}' (Type: ${mapping.metafieldType})`);
+        } else {
+          logger.info(`Mapping Engine: Successfully mapped metafield '${mapping.metafieldKey}'. Final Value: '${formattedValue}'`);
+        }
+
         // Map to metafield
         productData.metafields.push({
           namespace: mapping.metafieldNamespace,
           key: mapping.metafieldKey,
           type: mapping.metafieldType,
-          value: this.formatMetafieldValue(
-            transformedValue,
-            mapping.metafieldType
-          ),
+          value: formattedValue,
         });
       }
     });
