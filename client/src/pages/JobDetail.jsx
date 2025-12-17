@@ -36,7 +36,7 @@ function JobDetail() {
 
     const fetchJobDetails = async () => {
         try {
-            const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+            const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
 
             // Fetch job info
             const jobResponse = await fetch(`/api/jobs/${id}?shop=${shop}`);
@@ -60,7 +60,7 @@ function JobDetail() {
     const fetchJobRows = async (pageNum) => {
         setRowLoading(true);
         try {
-            const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+            const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
             const response = await fetch(`/api/jobs/${id}/rows?page=${pageNum}&limit=50&shop=${shop}`);
             const data = await response.json();
             setRows(data.rows);
@@ -75,7 +75,7 @@ function JobDetail() {
         if (!confirm('Are you sure you want to cancel this job?')) return;
 
         try {
-            const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+            const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
             const response = await fetch(`/api/jobs/${id}/cancel?shop=${shop}`, {
                 method: 'POST'
             });

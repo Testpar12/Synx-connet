@@ -23,7 +23,7 @@ function Feeds() {
 
   const fetchFeeds = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/feeds?shop=${shop}`);
       const data = await response.json();
       setFeeds(data.feeds);
@@ -38,7 +38,7 @@ function Feeds() {
     if (!confirm('Are you sure you want to delete this feed?')) return;
 
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       await fetch(`/api/feeds/${feedId}?shop=${shop}`, {
         method: 'DELETE',
       });

@@ -36,7 +36,11 @@ function FtpConnections() {
 
   const fetchConnections = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
+      if (!shop) {
+        console.error('No shop provided');
+        return;
+      }
       const response = await fetch(`/api/ftp-connections?shop=${shop}`);
       const data = await response.json();
       setConnections(data.connections);
@@ -49,7 +53,7 @@ function FtpConnections() {
 
   const handleSubmit = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       await fetch(`/api/ftp-connections?shop=${shop}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,7 +80,7 @@ function FtpConnections() {
   const handleTest = async (id) => {
     setTestingId(id);
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(
         `/api/ftp-connections/${id}/test?shop=${shop}`,
         { method: 'POST' }
@@ -102,7 +106,7 @@ function FtpConnections() {
     if (!confirm('Are you sure you want to delete this connection?')) return;
 
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       await fetch(`/api/ftp-connections/${id}?shop=${shop}`, {
         method: 'DELETE',
       });

@@ -30,7 +30,7 @@ function FeedDetail() {
 
   const fetchFeed = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/feeds/${id}?shop=${shop}`);
       const data = await response.json();
       setFeed(data.feed);
@@ -43,7 +43,7 @@ function FeedDetail() {
 
   const fetchJobs = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/jobs?feedId=${id}&shop=${shop}`);
       const data = await response.json();
       setJobs(data.jobs);
@@ -55,7 +55,7 @@ function FeedDetail() {
   const handleProcess = async () => {
     setProcessing(true);
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       await fetch(`/api/feeds/${id}/process?shop=${shop}`, {
         method: 'POST',
       });
@@ -72,7 +72,7 @@ function FeedDetail() {
   const handlePreview = async () => {
     setProcessing(true);
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       await fetch(`/api/feeds/${id}/preview?shop=${shop}`, {
         method: 'POST',
       });

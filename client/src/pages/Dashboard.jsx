@@ -22,7 +22,7 @@ function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'dev-shop.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/shops/current/stats?shop=${shop}`);
       const data = await response.json();
       setStats(data.stats);
