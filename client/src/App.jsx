@@ -26,6 +26,11 @@ function App() {
 
         const params = new URLSearchParams(window.location.search);
         const host = params.get('host');
+        const shop = params.get('shop');
+
+        if (shop) {
+          sessionStorage.setItem('currentPageShop', shop);
+        }
 
         if (data.apiKey && host) {
           setConfig({
