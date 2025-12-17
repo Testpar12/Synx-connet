@@ -200,8 +200,8 @@ class MappingEngine {
             return JSON.stringify(value);
           }
         } catch {
-          logger.warn(`Invalid JSON value for metafield: ${value}`);
-          return null;
+          // If parse fails, it might be a simple string that needs to be stringified
+          return JSON.stringify(value);
         }
 
       case 'date':
@@ -224,9 +224,38 @@ class MappingEngine {
           return null;
         }
 
-      case 'single_line_text_field':
-      case 'multi_line_text_field':
       default:
+        // Handle list types
+        if (type.startsWith('list.')) {
+          try {
+            // Check if it's already a JSON array string
+            if (typeof value === 'string') {
+              const parsed = JSON.parse(value);
+              if (Array.isArray(parsed)) return value;
+            }
+          } catch (e) {
+            // Ignore parse error, proceed to treat as raw value
+          }
+
+          // Not a JSON array, treat as delimiter-separated list or single value
+          // We support comma, pipe, or semicolon as delimiters for lists
+          if (typeof value === 'string') {
+            let items = [];
+            if (value.includes('|')) {
+              items = value.split('|');
+            } else if (value.includes(';')) {
+              items = value.split(';');
+            } else {
+              items = value.split(',');
+            }
+
+            items = items.map(s => s.trim()).filter(s => s !== '');
+            return JSON.stringify(items);
+          }
+
+          return JSON.stringify([value]);
+        }
+
         return value.toString();
     }
   }
