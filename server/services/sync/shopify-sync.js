@@ -367,29 +367,47 @@ class ShopifySync {
       type: meta.type,
     }));
 
-    try {
-      const response = await client.query({
-        data: {
-          query: mutation,
-          variables: { metafields: metafieldInputs },
-        },
-      });
+    // Shopify limit is 25 per request
+    const chunkSize = 25;
+    const allSetMetafields = [];
 
-      const { metafields: setMetafields, userErrors } =
-        response.body.data.metafieldsSet;
+    for (let i = 0; i < metafieldInputs.length; i += chunkSize) {
+      const chunk = metafieldInputs.slice(i, i + chunkSize);
 
-      if (userErrors && userErrors.length > 0) {
-        logger.warn(
-          `Metafield errors: ${userErrors.map((e) => e.message).join(', ')}`
-        );
+      try {
+        const response = await client.query({
+          data: {
+            query: mutation,
+            variables: { metafields: chunk },
+          },
+        });
+
+        const { metafields: setMetafields, userErrors } =
+          response.body.data.metafieldsSet;
+
+        if (userErrors && userErrors.length > 0) {
+          logger.warn(
+            `Metafield errors (chunk ${i / chunkSize + 1}): ${userErrors.map((e) => e.message).join(', ')}`
+          );
+        } else {
+          if (setMetafields) {
+            allSetMetafields.push(...setMetafields);
+          }
+        }
+
+        // Brief delay between chunks to be safe
+        if (i + chunkSize < metafieldInputs.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+      } catch (error) {
+        logger.error(`Error setting metafields chunk ${i / chunkSize + 1}:`, error);
+        // We continue processing other chunks even if one fails
       }
-
-      logger.info(`Metafields set for product: ${productId}`);
-      return setMetafields;
-    } catch (error) {
-      logger.error('Error setting metafields:', error);
-      throw error;
     }
+
+    logger.info(`Metafields set for product: ${productId} (${allSetMetafields.length}/${metafieldInputs.length})`);
+    return allSetMetafields;
   }
 
   /**

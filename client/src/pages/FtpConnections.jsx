@@ -13,6 +13,7 @@ import {
   Select,
   InlineStack,
 } from '@shopify/polaris';
+import FullPageLoader from '../components/FullPageLoader';
 
 function FtpConnections() {
   const [connections, setConnections] = useState([]);
@@ -29,6 +30,10 @@ function FtpConnections() {
     password: '',
     rootPath: '/',
   });
+
+  if (loading) {
+    return <FullPageLoader label="Loading connections..." />;
+  }
 
   useEffect(() => {
     fetchConnections();

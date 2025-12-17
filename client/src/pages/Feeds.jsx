@@ -11,11 +11,16 @@ import {
   EmptyState,
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
+import FullPageLoader from '../components/FullPageLoader';
 
 function Feeds() {
   const navigate = useNavigate();
   const [feeds, setFeeds] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  if (loading) {
+    return <FullPageLoader label="Loading feeds..." />;
+  }
 
   useEffect(() => {
     fetchFeeds();

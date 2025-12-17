@@ -11,6 +11,8 @@ import {
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
 
+import FullPageLoader from '../components/FullPageLoader';
+
 function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
@@ -34,15 +36,7 @@ function Dashboard() {
   };
 
   if (loading) {
-    return (
-      <Page title="Dashboard">
-        <Card>
-          <BlockStack gap="400">
-            <Text>Loading...</Text>
-          </BlockStack>
-        </Card>
-      </Page>
-    );
+    return <FullPageLoader label="Loading dashboard..." />;
   }
 
   return (

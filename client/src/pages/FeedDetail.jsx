@@ -13,6 +13,7 @@ import {
   InlineStack,
 } from '@shopify/polaris';
 import { useParams, useNavigate } from 'react-router-dom';
+import FullPageLoader from '../components/FullPageLoader';
 
 function FeedDetail() {
   const { id } = useParams();
@@ -87,13 +88,7 @@ function FeedDetail() {
   };
 
   if (loading || !feed) {
-    return (
-      <Page title="Loading...">
-        <Card>
-          <Text>Loading feed details...</Text>
-        </Card>
-      </Page>
-    );
+    return <FullPageLoader label="Loading feed details..." />;
   }
 
   const tabs = [

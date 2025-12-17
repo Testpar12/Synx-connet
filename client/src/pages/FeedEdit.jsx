@@ -18,6 +18,7 @@ import {
 } from '@shopify/polaris';
 import { useParams, useNavigate } from 'react-router-dom';
 import FieldMappingTable from '../components/FieldMappingTable';
+import FullPageLoader from '../components/FullPageLoader';
 
 function FeedEdit() {
   const { id } = useParams();
@@ -565,6 +566,9 @@ function FeedEdit() {
       </BlockStack>
     </Card>
   );
+  if (loading) {
+    return <FullPageLoader label="Loading feed configuration..." />;
+  }
 
   return (
     <Page

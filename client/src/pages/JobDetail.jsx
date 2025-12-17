@@ -13,6 +13,7 @@ import {
     Banner,
 } from '@shopify/polaris';
 import { useParams, useNavigate } from 'react-router-dom';
+import FullPageLoader from '../components/FullPageLoader';
 
 function JobDetail() {
     const { id } = useParams();
@@ -92,13 +93,7 @@ function JobDetail() {
     };
 
     if (loading) {
-        return (
-            <Page title="Loading...">
-                <Card>
-                    <Text>Loading job details...</Text>
-                </Card>
-            </Page>
-        );
+        return <FullPageLoader label="Loading job details..." />;
     }
 
     if (error || !job) {
