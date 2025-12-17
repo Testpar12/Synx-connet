@@ -48,9 +48,7 @@ class MappingEngine {
         mapping.transform?.ignoreEmpty &&
         this.isEmpty(transformedValue)
       ) {
-        if (mapping.fieldType === 'metafield') {
-          logger.info(`Mapping Engine: Skipping empty metafield '${mapping.metafieldKey}' (Raw: '${csvValue}')`);
-        }
+
         return;
       }
 
@@ -62,24 +60,17 @@ class MappingEngine {
           transformedValue
         );
       } else if (mapping.fieldType === 'metafield') {
-        const formattedValue = this.formatMetafieldValue(
-          transformedValue,
-          mapping.metafieldType
-        );
-
-        if (formattedValue === null) {
-          logger.warn(`Mapping Engine: Metafield '${mapping.metafieldKey}' formatted to NULL from value '${transformedValue}' (Type: ${mapping.metafieldType})`);
-        } else {
-          logger.info(`Mapping Engine: Successfully mapped metafield '${mapping.metafieldKey}'. Final Value: '${formattedValue}'`);
-        }
-
-        // Map to metafield
-        productData.metafields.push({
+        // Create metafield object
+        const metafield = {
           namespace: mapping.metafieldNamespace,
           key: mapping.metafieldKey,
           type: mapping.metafieldType,
           value: formattedValue,
-        });
+        };
+
+        // Map to metafield
+        // Map to metafield
+        productData.metafields.push(metafield);
       }
     });
 
@@ -199,11 +190,23 @@ class MappingEngine {
     }
 
     switch (type) {
-      case 'number_integer':
-        return parseInt(value, 10).toString();
+      case 'number_integer': {
+        const num = Number(value);
+        if (!Number.isFinite(num)) {
+          logger.warn(`Mapping Engine: Invalid integer value '${value}' for metafield`);
+          return null;
+        }
+        return Math.round(num).toString();
+      }
 
-      case 'number_decimal':
-        return parseFloat(value).toString();
+      case 'number_decimal': {
+        const num = Number(value);
+        if (!Number.isFinite(num)) {
+          logger.warn(`Mapping Engine: Invalid decimal value '${value}' for metafield`);
+          return null;
+        }
+        return num.toString();
+      }
 
       case 'boolean':
         const normalized = value.toString().toLowerCase();
