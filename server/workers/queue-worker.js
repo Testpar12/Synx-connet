@@ -316,6 +316,16 @@ class FeedProcessor {
 
         // Update progress every 10 rows
         if (rowNumber % 10 === 0) {
+          // Check for cancellation
+          const currentJob = await Job.findById(jobRecord._id);
+          if (!currentJob || currentJob.status === 'cancelled') {
+            logger.info(`Job ${jobRecord._id} was cancelled by user. Stopping worker.`);
+            return {
+              status: 'cancelled',
+              results: { ...results, status: 'cancelled' }
+            };
+          }
+
           await jobRecord.updateProgress(rowNumber, rows.length);
         }
       } catch (error) {
