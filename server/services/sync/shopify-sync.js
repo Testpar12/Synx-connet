@@ -1,0 +1,567 @@
+import shopify from '../../config/shopify.js';
+import Shop from '../../models/Shop.js';
+import logger from '../../utils/logger.js';
+
+/**
+ * Shopify Sync Service
+ * Handles product creation, updates, and metafield management
+ */
+class ShopifySync {
+  /**
+   * Find product by SKU or Handle
+   * @param {Object} shop - Shop document
+   * @param {Object} identifier - {type: 'sku'|'handle', value: string}
+   * @returns {Promise<Object|null>} Product or null
+   */
+  async findProduct(shop, identifier) {
+    const session = this.createSession(shop);
+    const client = new shopify.clients.Graphql({ session });
+
+    if (identifier.type === 'handle') {
+      return this.findByHandle(client, identifier.value);
+    } else if (identifier.type === 'sku') {
+      return this.findBySku(client, identifier.value);
+    }
+
+    return null;
+  }
+
+  /**
+   * Find product by handle
+   */
+  async findByHandle(client, handle) {
+    const query = `
+      query getProductByHandle($handle: String!) {
+        productByHandle(handle: $handle) {
+          id
+          title
+          handle
+          descriptionHtml
+          vendor
+          productType
+          tags
+          status
+          metafields(first: 250) {
+            edges {
+              node {
+                id
+                namespace
+                key
+                value
+                type
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    try {
+      const response = await client.query({
+        data: {
+          query,
+          variables: { handle },
+        },
+      });
+
+      return response.body.data.productByHandle;
+    } catch (error) {
+      logger.error('Error finding product by handle:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find product by SKU
+   */
+  async findBySku(client, sku) {
+    const query = `
+      query getProductBySku($query: String!) {
+        products(first: 1, query: $query) {
+          edges {
+            node {
+              id
+              title
+              handle
+              descriptionHtml
+              vendor
+              productType
+              tags
+              status
+              variants(first: 1) {
+                edges {
+                  node {
+                    id
+                    sku
+                  }
+                }
+              }
+              metafields(first: 250) {
+                edges {
+                  node {
+                    id
+                    namespace
+                    key
+                    value
+                    type
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    try {
+      const response = await client.query({
+        data: {
+          query,
+          variables: { query: `sku:${sku}` },
+        },
+      });
+
+      const products = response.body.data.products.edges;
+      return products.length > 0 ? products[0].node : null;
+    } catch (error) {
+      logger.error('Error finding product by SKU:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create new product
+   * @param {Object} shop - Shop document
+   * @param {Object} productData - Product data
+   * @param {string} sku - SKU for variant
+   * @returns {Promise<Object>} Created product
+   */
+  async createProduct(shop, productData, sku) {
+    const session = this.createSession(shop);
+    const client = new shopify.clients.Graphql({ session });
+
+    // 1. Create product without properties that belong to variants
+    const createMutation = `
+      mutation productCreate($input: ProductInput!) {
+        productCreate(input: $input) {
+          product {
+            id
+            title
+            handle
+            status
+            variants(first: 1) {
+              edges {
+                node {
+                  id
+                }
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const input = {
+      title: productData.title || 'Untitled Product',
+      descriptionHtml: productData.body_html || '',
+      vendor: productData.vendor || '',
+      productType: productData.product_type || '',
+      tags: productData.tags || [],
+      status: productData.status?.toUpperCase() || 'DRAFT',
+    };
+
+    if (productData.handle) {
+      input.handle = productData.handle;
+    }
+
+    try {
+      const response = await client.query({
+        data: {
+          query: createMutation,
+          variables: { input },
+        },
+      });
+
+      const { product, userErrors } = response.body.data.productCreate;
+
+      if (userErrors && userErrors.length > 0) {
+        throw new Error(
+          `Product creation failed: ${userErrors.map((e) => e.message).join(', ')}`
+        );
+      }
+
+      // 2. Update the default variant with SKU and Inventory Policy
+      if (product.variants?.edges?.length > 0) {
+        const variantId = product.variants.edges[0].node.id;
+        await this.updateVariant(client, product.id, variantId, {
+          sku: sku,
+          inventoryPolicy: 'DENY', // Or 'CONTINUE' based on requirements
+        });
+      }
+
+      logger.info(`Product created: ${product.id}`);
+      return product;
+    } catch (error) {
+      logger.error('Error creating product:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update product variant (helper) - Uses productVariantsBulkUpdate for API 2025-01+
+   */
+  async updateVariant(client, productId, variantId, data) {
+    const mutation = `
+      mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+          productVariants {
+            id
+            sku
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const variants = [
+      {
+        id: variantId,
+        inventoryItem: {
+          sku: data.sku,
+        },
+        inventoryPolicy: data.inventoryPolicy,
+      },
+    ];
+
+    const response = await client.query({
+      data: {
+        query: mutation,
+        variables: {
+          productId,
+          variants,
+        },
+      },
+    });
+
+    const { userErrors } = response.body.data.productVariantsBulkUpdate;
+
+    if (userErrors && userErrors.length > 0) {
+      throw new Error(
+        `Variant update failed: ${userErrors.map((e) => e.message).join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * Update existing product
+   * @param {Object} shop - Shop document
+   * @param {string} productId - Shopify product ID
+   * @param {Object} productData - Product data to update
+   * @returns {Promise<Object>} Updated product
+   */
+  async updateProduct(shop, productId, productData) {
+    const session = this.createSession(shop);
+    const client = new shopify.clients.Graphql({ session });
+
+    const mutation = `
+      mutation productUpdate($input: ProductInput!) {
+        productUpdate(input: $input) {
+          product {
+            id
+            title
+            handle
+            status
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const input = {
+      id: productId,
+      ...productData,
+    };
+
+    // Rename body_html to descriptionHtml recursively if present
+    if (input.body_html) {
+      input.descriptionHtml = input.body_html;
+      delete input.body_html;
+    }
+
+    // Convert status to uppercase if present
+    if (input.status) {
+      input.status = input.status.toUpperCase();
+    }
+
+    try {
+      const response = await client.query({
+        data: {
+          query: mutation,
+          variables: { input },
+        },
+      });
+
+      const { product, userErrors } = response.body.data.productUpdate;
+
+      if (userErrors && userErrors.length > 0) {
+        throw new Error(
+          `Product update failed: ${userErrors.map((e) => e.message).join(', ')}`
+        );
+      }
+
+      logger.info(`Product updated: ${product.id}`);
+      return product;
+    } catch (error) {
+      logger.error('Error updating product:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set metafields for product
+   * @param {Object} shop - Shop document
+   * @param {string} productId - Shopify product ID
+   * @param {Array} metafields - Metafields to set
+   * @returns {Promise<Array>} Set metafields
+   */
+  async setMetafields(shop, productId, metafields) {
+    if (!metafields || metafields.length === 0) {
+      return [];
+    }
+
+    const session = this.createSession(shop);
+    const client = new shopify.clients.Graphql({ session });
+
+    const mutation = `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            namespace
+            key
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const metafieldInputs = metafields.map((meta) => ({
+      ownerId: productId,
+      namespace: meta.namespace,
+      key: meta.key,
+      value: meta.value !== null ? meta.value.toString() : '',
+      type: meta.type,
+    }));
+
+    try {
+      const response = await client.query({
+        data: {
+          query: mutation,
+          variables: { metafields: metafieldInputs },
+        },
+      });
+
+      const { metafields: setMetafields, userErrors } =
+        response.body.data.metafieldsSet;
+
+      if (userErrors && userErrors.length > 0) {
+        logger.warn(
+          `Metafield errors: ${userErrors.map((e) => e.message).join(', ')}`
+        );
+      }
+
+      logger.info(`Metafields set for product: ${productId}`);
+      return setMetafields;
+    } catch (error) {
+      logger.error('Error setting metafields:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add images to product
+   * @param {Object} shop - Shop document
+   * @param {string} productId - Shopify product ID
+   * @param {Array} imageUrls - Image URLs
+   * @returns {Promise<Array>} Created images
+   */
+  async addImages(shop, productId, imageUrls) {
+    if (!imageUrls || imageUrls.length === 0) {
+      return [];
+    }
+
+    const session = this.createSession(shop);
+    const client = new shopify.clients.Graphql({ session });
+
+    const mutation = `
+      mutation productCreateMedia($media: [CreateMediaInput!]!, $productId: ID!) {
+        productCreateMedia(media: $media, productId: $productId) {
+          media {
+            ... on MediaImage {
+              id
+              image {
+                url
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const mediaInputs = imageUrls.map((url) => ({
+      originalSource: url,
+      mediaContentType: 'IMAGE',
+    }));
+
+    try {
+      const response = await client.query({
+        data: {
+          query: mutation,
+          variables: {
+            productId,
+            media: mediaInputs,
+          },
+        },
+      });
+
+      const { media, userErrors } = response.body.data.productCreateMedia;
+
+      if (userErrors && userErrors.length > 0) {
+        logger.warn(
+          `Image upload errors: ${userErrors.map((e) => e.message).join(', ')}`
+        );
+      }
+
+      logger.info(`Images added to product: ${productId}`);
+      return media;
+    } catch (error) {
+      logger.error('Error adding images:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync product (create or update)
+   * @param {Object} shop - Shop document
+   * @param {Object} productData - Transformed product data
+   * @param {Object} identifier - Product identifier
+   * @param {Object} options - Sync options
+   * @returns {Promise<{operation: string, product: Object, changes: Array}>}
+   */
+  async syncProduct(shop, productData, identifier, options = {}) {
+    const { updateExisting = true, createNew = true } = options;
+
+    // Find existing product
+    const existingProduct = await this.findProduct(shop, identifier);
+
+    if (existingProduct) {
+      // Product exists
+      if (!updateExisting) {
+        return {
+          operation: 'skip',
+          reason: 'Product exists and updateExisting is false',
+          product: existingProduct,
+        };
+      }
+
+      // Update product fields if any
+      if (Object.keys(productData.product).length > 0) {
+        await this.updateProduct(
+          shop,
+          existingProduct.id,
+          productData.product
+        );
+      }
+
+      // Update metafields
+      if (productData.metafields && productData.metafields.length > 0) {
+        await this.setMetafields(
+          shop,
+          existingProduct.id,
+          productData.metafields
+        );
+      }
+
+      // Add images if present
+      if (productData.product.images && productData.product.images.length > 0) {
+        const imageUrls = productData.product.images.map((img) => img.src);
+        await this.addImages(shop, existingProduct.id, imageUrls);
+      }
+
+      return {
+        operation: 'update',
+        product: existingProduct,
+      };
+    } else {
+      // Product doesn't exist
+      if (!createNew) {
+        return {
+          operation: 'skip',
+          reason: 'Product not found and createNew is false',
+        };
+      }
+
+      // Create product
+      const newProduct = await this.createProduct(
+        shop,
+        productData.product,
+        identifier.value
+      );
+
+      // Set metafields
+      if (productData.metafields && productData.metafields.length > 0) {
+        await this.setMetafields(shop, newProduct.id, productData.metafields);
+      }
+
+      // Add images
+      if (productData.product.images && productData.product.images.length > 0) {
+        const imageUrls = productData.product.images.map((img) => img.src);
+        await this.addImages(shop, newProduct.id, imageUrls);
+      }
+
+      return {
+        operation: 'create',
+        product: newProduct,
+      };
+    }
+  }
+
+  /**
+   * Create Shopify session from shop document
+   * @param {Object} shop - Shop document
+   * @returns {Object} Shopify session
+   */
+  createSession(shop) {
+    return {
+      shop: shop.domain,
+      accessToken: shop.accessToken,
+    };
+  }
+
+  /**
+   * Rate limit delay
+   */
+  async rateLimit() {
+    return new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
+  }
+}
+
+export default new ShopifySync();
