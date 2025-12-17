@@ -31,14 +31,6 @@ function FtpConnections() {
     rootPath: '/',
   });
 
-  useEffect(() => {
-    fetchConnections();
-  }, []);
-
-  if (loading) {
-    return <FullPageLoader label="Loading connections..." />;
-  }
-
   const fetchConnections = async () => {
     try {
       const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
@@ -55,6 +47,14 @@ function FtpConnections() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchConnections();
+  }, []);
+
+  if (loading) {
+    return <FullPageLoader label="Loading connections..." />;
+  }
 
   const handleSubmit = async () => {
     try {

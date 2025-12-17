@@ -27,14 +27,6 @@ function JobDetail() {
     const [totalPages, setTotalPages] = useState(1);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        fetchJobDetails();
-    }, [id]);
-
-    useEffect(() => {
-        fetchJobRows(page);
-    }, [id, page]);
-
     const fetchJobDetails = async () => {
         try {
             const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
@@ -72,6 +64,15 @@ function JobDetail() {
             setRowLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchJobDetails();
+    }, [id]);
+
+    useEffect(() => {
+        fetchJobRows(page);
+    }, [id, page]);
+
     const handleCancel = async () => {
         if (!confirm('Are you sure you want to cancel this job?')) return;
 

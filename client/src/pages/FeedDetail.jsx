@@ -24,11 +24,6 @@ function FeedDetail() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    fetchFeed();
-    fetchJobs();
-  }, [id]);
-
   const fetchFeed = async () => {
     try {
       const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
@@ -52,6 +47,15 @@ function FeedDetail() {
       console.error('Error fetching jobs:', error);
     }
   };
+
+  useEffect(() => {
+    fetchFeed();
+    fetchJobs();
+  }, [id]);
+
+  if (loading || !feed) {
+    return <FullPageLoader label="Loading feed details..." />;
+  }
 
   const handleProcess = async () => {
     setProcessing(true);

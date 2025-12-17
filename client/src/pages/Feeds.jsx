@@ -18,14 +18,6 @@ function Feeds() {
   const [feeds, setFeeds] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchFeeds();
-  }, []);
-
-  if (loading) {
-    return <FullPageLoader label="Loading feeds..." />;
-  }
-
   const fetchFeeds = async () => {
     try {
       const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
@@ -38,6 +30,14 @@ function Feeds() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchFeeds();
+  }, []);
+
+  if (loading) {
+    return <FullPageLoader label="Loading feeds..." />;
+  }
 
   const handleDelete = async (feedId) => {
     if (!confirm('Are you sure you want to delete this feed?')) return;

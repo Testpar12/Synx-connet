@@ -68,13 +68,6 @@ function FeedEdit() {
     },
   });
 
-  useEffect(() => {
-    fetchFtpConnections();
-    if (!isNew) {
-      fetchFeed();
-    }
-  }, [id]);
-
   const fetchFtpConnections = async () => {
     try {
       const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
@@ -99,7 +92,7 @@ function FeedEdit() {
       // If feed has mappings, go to step 2
       if (data.feed.mappings?.length > 0) {
         setCurrentStep(2);
-        await fetchCsvHeaders();
+        await fetchCsvHeaders(data.feed.ftpConnection._id, data.feed.file.path, data.feed.file.delimiter);
         await fetchShopifyFields();
       }
     } catch (error) {
@@ -108,6 +101,13 @@ function FeedEdit() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchFtpConnections();
+    if (!isNew) {
+      fetchFeed();
+    }
+  }, [id]);
 
   if (loading) {
     return <FullPageLoader label="Loading feed configuration..." />;
