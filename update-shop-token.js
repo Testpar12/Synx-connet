@@ -6,7 +6,7 @@ async function updateToken() {
     await mongoose.connect('mongodb://localhost:27017/synx-connect');
 
     const domain = 'develops-test-store.myshopify.com';
-    const token = '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';
+    const token = '';
 
     console.log(`Updating token for ${domain}...`);
 
