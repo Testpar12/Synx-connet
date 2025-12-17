@@ -61,7 +61,8 @@ class App {
     // Security headers
     this.app.use(
       helmet({
-        contentSecurityPolicy: false, // Shopify embedded apps need specific CSP
+        contentSecurityPolicy: false,
+        frameguard: false,
       })
     );
 
