@@ -105,13 +105,23 @@ class App {
    */
   setupRoutes() {
     // Health check
-    this.app.get('/health', (req, res) => {
-      res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        database: database.isConnected(),
-        redis: redisClient.getClient().status === 'ready',
-      });
+    this.app.get('/health', async (req, res) => {
+      try {
+        const shopCount = await database.connection.collection('shops').countDocuments();
+        res.json({
+          status: 'ok',
+          environment: config.env,
+          database_connected: database.isConnected(),
+          shop_count: shopCount, // Proof of read access
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        res.status(500).json({
+          status: 'error',
+          message: error.message,
+          database_connected: database.isConnected()
+        });
+      }
     });
 
     // API routes

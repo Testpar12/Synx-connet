@@ -65,36 +65,46 @@ router.get('/callback', async (req, res) => {
       throw new Error('No session returned from OAuth callback');
     }
 
+    logger.info(`Received OAuth callback for shop: ${session.shop}`);
+
     // Get shop info from Shopify
     const client = new shopify.clients.Rest({ session });
     const shopInfo = await client.get({ path: 'shop' });
 
+    logger.info(`Fetched shop info from Shopify for: ${session.shop}`);
+
     // Save or update shop in database
-    const shop = await Shop.findOneAndUpdate(
-      { domain: session.shop },
-      {
-        domain: session.shop,
-        name: shopInfo.body.shop.name,
-        email: shopInfo.body.shop.email,
-        accessToken: session.accessToken,
-        scopes: session.scope.split(','),
-        plan: shopInfo.body.shop.plan_name,
-        currency: shopInfo.body.shop.currency,
-        timezone: shopInfo.body.shop.timezone,
-        isActive: true,
-        installedAt: new Date(),
-        subscription: {
-          status: 'trial',
-          plan: 'free',
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+    try {
+      const shop = await Shop.findOneAndUpdate(
+        { domain: session.shop },
+        {
+          domain: session.shop,
+          name: shopInfo.body.shop.name,
+          email: shopInfo.body.shop.email,
+          accessToken: session.accessToken,
+          scopes: session.scope.split(','),
+          plan: shopInfo.body.shop.plan_name,
+          currency: shopInfo.body.shop.currency,
+          timezone: shopInfo.body.shop.timezone,
+          isActive: true,
+          installedAt: new Date(),
+          subscription: {
+            status: 'trial',
+            plan: 'free',
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+          },
         },
-      },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+      logger.info(`✅ Successfully saved shop to DB: ${session.shop}, ID: ${shop._id}`);
+    } catch (dbError) {
+      logger.error(`❌ CRITICAL DB ERROR saving shop: ${dbError.message}`, dbError);
+      throw dbError;
+    }
 
     logger.info(`Shop authenticated successfully: ${session.shop}`);
 
@@ -103,7 +113,7 @@ router.get('/callback', async (req, res) => {
     res.redirect(redirectUrl);
   } catch (error) {
     logger.error('OAuth callback error:', error);
-    res.status(500).send('Authentication failed. Please try again.');
+    res.status(500).send(`Authentication failed: ${error.message}`);
   }
 });
 
