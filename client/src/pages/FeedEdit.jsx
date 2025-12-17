@@ -76,7 +76,7 @@ function FeedEdit() {
 
   const fetchFtpConnections = async () => {
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/ftp-connections?shop=${shop}`);
       const data = await response.json();
       setFtpConnections(data.connections || []);
@@ -88,7 +88,7 @@ function FeedEdit() {
   const fetchFeed = async () => {
     setLoading(true);
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/feeds/${id}?shop=${shop}`);
       const data = await response.json();
       setFormData({
@@ -119,7 +119,7 @@ function FeedEdit() {
     setError(null);
 
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/feeds/preview-csv-headers?shop=${shop}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,7 +162,7 @@ function FeedEdit() {
     setLoadingFields(true);
 
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const response = await fetch(`/api/shopify-fields/product-fields?shop=${shop}`);
       const data = await response.json();
 
@@ -286,7 +286,7 @@ function FeedEdit() {
     setError(null);
 
     try {
-      const shop = new URLSearchParams(window.location.search).get('shop') || 'develops-test-store.myshopify.com';
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
       const url = isNew
         ? `/api/feeds?shop=${shop}`
         : `/api/feeds/${id}?shop=${shop}`;
