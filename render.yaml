@@ -1,11 +1,11 @@
 services:
-  # 1. Main Web Service (Backend + Frontend)
+  # 1. Main Web Service (Runs Backend + Worker + Frontend)
   - type: web
     name: synx-connect-web
     env: node
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
         value: production
@@ -32,32 +32,7 @@ services:
       - key: ENCRYPTION_KEY
         sync: false
 
-  # 2. Worker Service (Bull Queue Processor)
-  - type: worker
-    name: synx-connect-worker
-    env: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm run worker
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: MONGODB_URI
-        sync: false
-      - key: REDIS_HOST
-        fromService:
-          name: synx-connect-redis
-          type: redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          name: synx-connect-redis
-          type: redis
-          property: port
-      - key: ENCRYPTION_KEY
-        sync: false
-
-  # 3. Redis Service
+  # 2. Redis Service
   - type: redis
     name: synx-connect-redis
     plan: free
