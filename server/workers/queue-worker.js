@@ -312,22 +312,24 @@ class FeedProcessor {
           await shopifySync.rateLimit();
         }
 
+        // Check for cancellation every row to be responsive
+        const currentJob = await Job.findById(jobRecord._id);
+        if (!currentJob || currentJob.status === 'cancelled') {
+          logger.info(`Job ${jobRecord._id} was cancelled by user. Stopping worker.`);
+          return {
+            status: 'cancelled',
+            results: { ...results, status: 'cancelled' }
+          };
+        }
+
         results.processed++;
 
-        // Update progress every 10 rows
-        if (rowNumber % 10 === 0) {
-          // Check for cancellation
-          const currentJob = await Job.findById(jobRecord._id);
-          if (!currentJob || currentJob.status === 'cancelled') {
-            logger.info(`Job ${jobRecord._id} was cancelled by user. Stopping worker.`);
-            return {
-              status: 'cancelled',
-              results: { ...results, status: 'cancelled' }
-            };
-          }
-
-          await jobRecord.updateProgress(rowNumber, rows.length);
-        }
+        // Update progress frequently (every 5 rows or every row if total is small)
+        // With 1397 rows, every 5 rows is fine, but to solve the "0 progress" issue we can do every row
+        // for the first few, then back off. But for simplicity and responsiveness, let's do every row.
+        // It adds DB overhead but ensures "Cancelled" state is caught.
+        // Actually, we already queried the DB for cancellation above. We can update progress too.
+        await jobRecord.updateProgress(rowNumber, rows.length);
       } catch (error) {
         results.failed++;
         logger.error(`Error processing row ${rowNumber}:`, error);
