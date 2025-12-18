@@ -105,7 +105,7 @@ function FieldMappingTable({
                 })),
             ];
         }
-        if (field.key === 'published_scope') {
+        if (field.key === 'published') {
             return [
                 { label: '-- Do not import --', value: '' },
                 { label: 'True', value: 'CONSTANT:true' },
