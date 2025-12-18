@@ -133,11 +133,15 @@ const feedSchema = new mongoose.Schema(
     // Maps specific CSV values to target metafields
     valueMappings: [
       {
-        sourceField: String,      // The Shopify field being checked (e.g., "metafield:custom.color")
-        sourceCsvColumn: String,  // The CSV column name
-        sourceValue: String,      // The CSV value to match
-        targetField: String,      // The target metafield to write to
-        targetValue: String,      // The value to write to the target metafield
+        sourceField: String,           // The Shopify field being checked (e.g., "metafield:custom.color")
+        sourceCsvColumn: String,       // The CSV column name
+        sourceValue: String,           // The CSV value to match
+        targetField: String,           // The target metafield key (e.g., "metafield:custom.color_index")
+        targetValue: String,           // The value to write to the target metafield
+        // Full target metafield info (for direct writing without lookup)
+        targetMetafieldNamespace: String,
+        targetMetafieldKey: String,
+        targetMetafieldType: { type: String, default: 'single_line_text_field' },
       },
     ],
 

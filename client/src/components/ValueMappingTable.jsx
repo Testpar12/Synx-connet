@@ -98,12 +98,35 @@ function ValueMappingTable({
         }))
     ];
 
+    // Find target metafield info from shopifyFields
+    const getTargetMetafieldInfo = (targetFieldKey) => {
+        const field = shopifyFields.find(f => f.key === targetFieldKey);
+        if (field) {
+            return {
+                targetMetafieldNamespace: field.metafieldNamespace,
+                targetMetafieldKey: field.metafieldKey,
+                targetMetafieldType: field.metafieldType || 'single_line_text_field'
+            };
+        }
+        // Fallback: try to parse from key (format: "metafield:namespace.key")
+        const match = targetFieldKey?.match(/^metafield:([^.]+)\.(.+)$/);
+        if (match) {
+            return {
+                targetMetafieldNamespace: match[1],
+                targetMetafieldKey: match[2],
+                targetMetafieldType: 'single_line_text_field'
+            };
+        }
+        return {};
+    };
+
     // Handle adding a new mapping configuration
     const handleAddConfiguration = () => {
         if (newSourceIndex === '' || !newTargetField) return;
 
         const sourceMapping = mappings[parseInt(newSourceIndex)];
         const uniqueValues = getUniqueValuesForColumn(sourceMapping.csvColumn);
+        const targetInfo = getTargetMetafieldInfo(newTargetField);
 
         // Add empty mappings for all unique values
         uniqueValues.forEach(value => {
@@ -112,7 +135,8 @@ function ValueMappingTable({
                 sourceCsvColumn: sourceMapping.csvColumn,
                 sourceValue: value,
                 targetField: newTargetField,
-                targetValue: ''
+                targetValue: '',
+                ...targetInfo
             });
         });
 
@@ -123,12 +147,14 @@ function ValueMappingTable({
 
     // Handle value change for a specific mapping
     const handleValueChange = (config, sourceValue, targetValue) => {
+        const targetInfo = getTargetMetafieldInfo(config.targetField);
         onAddValueMapping({
             sourceField: config.sourceField,
             sourceCsvColumn: config.sourceCsvColumn,
             sourceValue: sourceValue,
             targetField: config.targetField,
-            targetValue: targetValue
+            targetValue: targetValue,
+            ...targetInfo
         });
     };
 

@@ -106,26 +106,44 @@ class MappingEngine {
 
         // Check if this row's source value matches the configured value
         if (sourceValue !== undefined && String(sourceValue).trim() === String(vm.sourceValue).trim()) {
-          // Find the target field configuration from mappings
-          const targetMapping = mappings.find(m => m.shopifyField === vm.targetField);
+          // Skip if no target value configured
+          if (!vm.targetValue) return;
 
-          if (targetMapping && targetMapping.fieldType === 'metafield') {
+          // Use direct metafield info if available, otherwise try to parse from targetField
+          let namespace = vm.targetMetafieldNamespace;
+          let key = vm.targetMetafieldKey;
+          let type = vm.targetMetafieldType || 'single_line_text_field';
+
+          // Fallback: parse from targetField (format: "metafield:namespace.key")
+          if (!namespace || !key) {
+            const targetMapping = mappings.find(m => m.shopifyField === vm.targetField);
+            if (targetMapping && targetMapping.fieldType === 'metafield') {
+              namespace = targetMapping.metafieldNamespace;
+              key = targetMapping.metafieldKey;
+              type = targetMapping.metafieldType || 'single_line_text_field';
+            } else {
+              // Try parsing from targetField string like "metafield:custom.color_index"
+              const match = vm.targetField?.match(/^metafield:([^.]+)\.(.+)$/);
+              if (match) {
+                namespace = match[1];
+                key = match[2];
+              }
+            }
+          }
+
+          if (namespace && key) {
             // Format the target value for the metafield type
-            const formattedValue = this.formatMetafieldValue(
-              vm.targetValue,
-              targetMapping.metafieldType
-            );
+            const formattedValue = this.formatMetafieldValue(vm.targetValue, type);
 
             // Add or replace the metafield
             const existingIndex = productData.metafields.findIndex(
-              mf => mf.namespace === targetMapping.metafieldNamespace &&
-                mf.key === targetMapping.metafieldKey
+              mf => mf.namespace === namespace && mf.key === key
             );
 
             const metafield = {
-              namespace: targetMapping.metafieldNamespace,
-              key: targetMapping.metafieldKey,
-              type: targetMapping.metafieldType,
+              namespace: namespace,
+              key: key,
+              type: type,
               value: formattedValue,
             };
 
@@ -135,7 +153,9 @@ class MappingEngine {
               productData.metafields.push(metafield);
             }
 
-            logger.info(`Value Mapping: Source '${vm.sourceCsvColumn}' = '${sourceValue}' -> Writing '${vm.targetValue}' to '${vm.targetField}'`);
+            logger.info(`Value Mapping: Source '${vm.sourceCsvColumn}' = '${sourceValue}' -> Writing '${vm.targetValue}' to '${namespace}.${key}'`);
+          } else {
+            logger.warn(`Value Mapping: Could not determine target metafield for '${vm.targetField}'`);
           }
         }
       });
