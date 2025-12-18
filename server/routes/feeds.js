@@ -62,6 +62,18 @@ const createFeedSchema = Joi.object({
       action: Joi.string().valid('include', 'exclude').default('include'),
     })
   ).optional(),
+  valueMappings: Joi.array().items(
+    Joi.object({
+      sourceField: Joi.string().required(),
+      sourceCsvColumn: Joi.string().required(),
+      sourceValue: Joi.string().required(),
+      targetField: Joi.string().required(),
+      targetValue: Joi.string().allow(''),
+      targetMetafieldNamespace: Joi.string().optional(),
+      targetMetafieldKey: Joi.string().optional(),
+      targetMetafieldType: Joi.string().optional().default('single_line_text_field'),
+    })
+  ).optional(),
   schedule: Joi.object({
     enabled: Joi.boolean().default(false),
     frequency: Joi.string()
