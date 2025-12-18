@@ -60,6 +60,12 @@ class MappingEngine {
           transformedValue
         );
       } else if (mapping.fieldType === 'metafield') {
+        // Format the value for the metafield type
+        const formattedValue = this.formatMetafieldValue(
+          transformedValue,
+          mapping.metafieldType
+        );
+
         // Create metafield object
         const metafield = {
           namespace: mapping.metafieldNamespace,
