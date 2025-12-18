@@ -179,6 +179,18 @@ class MappingEngine {
         }
         break;
 
+      case 'published_scope':
+        // Map boolean-like values to valid Shopify scopes
+        const scope = String(value).toLowerCase();
+        if (scope === 'true' || scope === 'global') {
+          product.published_scope = 'global';
+        } else if (scope === 'false' || scope === 'web') {
+          product.published_scope = 'web';
+        } else {
+          product.published_scope = value;
+        }
+        break;
+
       default:
         product[field] = value;
     }

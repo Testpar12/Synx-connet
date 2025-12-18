@@ -98,6 +98,18 @@ function FieldMappingTable({
                 { label: '-- Do not import --', value: '' },
                 { label: 'Set as Active', value: 'CONSTANT:active' },
                 { label: 'Set as Draft', value: 'CONSTANT:draft' },
+                { label: 'Set as Archived', value: 'CONSTANT:archived' },
+                ...csvHeaders.map((header) => ({
+                    label: header,
+                    value: header,
+                })),
+            ];
+        }
+        if (field.key === 'published_scope') {
+            return [
+                { label: '-- Do not import --', value: '' },
+                { label: 'True', value: 'CONSTANT:true' },
+                { label: 'False', value: 'CONSTANT:false' },
                 ...csvHeaders.map((header) => ({
                     label: header,
                     value: header,
