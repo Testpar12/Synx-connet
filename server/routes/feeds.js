@@ -459,8 +459,9 @@ router.post('/preview-csv-headers', async (req, res) => {
     const { localPath } = await ftpService.downloadFile(ftpConnection, filePath);
 
     try {
-      // Parse first few rows to get headers
-      const { headers, rows } = await csvParser.parseFileWithLimit(localPath, 5, {
+      // Parse rows to get headers and sample data
+      // Increased to 500 rows to capture more unique values for value mapping in Step 3
+      const { headers, rows } = await csvParser.parseFileWithLimit(localPath, 500, {
         delimiter,
         hasHeader: true,
       });
