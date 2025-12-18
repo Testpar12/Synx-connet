@@ -10,6 +10,7 @@ import {
     BlockStack,
     Icon,
     Box,
+    TextField,
 } from '@shopify/polaris';
 import { DeleteIcon } from '@shopify/polaris-icons';
 
@@ -116,6 +117,16 @@ function FieldMappingTable({
                 })),
             ];
         }
+        if (field.key === 'title') {
+            return [
+                { label: '-- Do not import --', value: '' },
+                { label: 'Use Custom Text', value: 'CONSTANT:' },
+                ...csvHeaders.map((header) => ({
+                    label: header,
+                    value: header,
+                })),
+            ];
+        }
         return csvOptions;
     };
 
@@ -152,13 +163,27 @@ function FieldMappingTable({
                                 </IndexTable.Cell>
                                 <IndexTable.Cell>{getTypeBadge(field)}</IndexTable.Cell>
                                 <IndexTable.Cell>
-                                    <Select
-                                        label=""
-                                        labelHidden
-                                        options={getOptionsForField(field)}
-                                        value={getMappedCsvColumn(field.key)}
-                                        onChange={(value) => handleChange(field, value)}
-                                    />
+                                    {getMappedCsvColumn(field.key).startsWith('CONSTANT:') &&
+                                        !['CONSTANT:active', 'CONSTANT:draft', 'CONSTANT:archived', 'CONSTANT:true', 'CONSTANT:false', 'CONSTANT:global', 'CONSTANT:web'].includes(getMappedCsvColumn(field.key)) ? (
+                                        <TextField
+                                            label=""
+                                            labelHidden
+                                            value={getMappedCsvColumn(field.key).replace('CONSTANT:', '')}
+                                            onChange={(value) => handleChange(field, `CONSTANT:${value}`)}
+                                            autoComplete="off"
+                                            clearButton
+                                            onClearButtonClick={() => handleChange(field, '')}
+                                            placeholder="Enter custom text..."
+                                        />
+                                    ) : (
+                                        <Select
+                                            label=""
+                                            labelHidden
+                                            options={getOptionsForField(field)}
+                                            value={getMappedCsvColumn(field.key)}
+                                            onChange={(value) => handleChange(field, value)}
+                                        />
+                                    )}
                                 </IndexTable.Cell>
                             </IndexTable.Row>
                         ))}
