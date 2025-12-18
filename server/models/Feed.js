@@ -87,6 +87,12 @@ const feedSchema = new mongoose.Schema(
         metafieldType: {
           type: String,
         },
+        // Value Mappings
+        valueMap: {
+          type: Map,
+          of: String,
+          default: {},
+        },
         // Transformation options
         transform: {
           trim: { type: Boolean, default: true },

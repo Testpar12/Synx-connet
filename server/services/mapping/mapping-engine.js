@@ -27,6 +27,23 @@ class MappingEngine {
         csvValue = csvRow[mapping.csvColumn];
       }
 
+      // Apply Value Mapping if present
+      if (mapping.valueMap) {
+        const strValue = String(csvValue); // Ensure we look up by string
+        let mappedValue;
+
+        // Handle Mongoose Map or POJO
+        if (mapping.valueMap instanceof Map) {
+          mappedValue = mapping.valueMap.get(strValue);
+        } else {
+          mappedValue = mapping.valueMap[strValue];
+        }
+
+        if (mappedValue !== undefined && mappedValue !== null && mappedValue !== '') {
+          csvValue = mappedValue;
+        }
+      }
+
       // Apply transformations
       const transformedValue = this.applyTransformations(
         csvValue,

@@ -476,4 +476,77 @@ router.post('/preview-csv-headers', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/feeds/preview-csv-values
+ * Preview unique values from a CSV column (for value mapping)
+ */
+router.post('/preview-csv-values', async (req, res) => {
+  try {
+    const { ftpConnectionId, filePath, columnName, delimiter = ',' } = req.body;
+
+    if (!ftpConnectionId || !filePath || !columnName) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'ftpConnectionId, filePath, and columnName are required',
+      });
+    }
+
+    // Find FTP connection
+    const ftpConnection = await FtpConnection.findOne({
+      _id: ftpConnectionId,
+      shop: req.shop._id,
+      isActive: true,
+    });
+
+    if (!ftpConnection) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'FTP connection not found',
+      });
+    }
+
+    // Create FTP service instance
+    const ftpService = new FtpService();
+
+    // Download CSV file from FTP
+    const { localPath } = await ftpService.downloadFile(ftpConnection, filePath);
+
+    try {
+      // Parse with a higher limit to capture enough samples, but verify uniqueness
+      // We'll read up to 1000 rows to find unique values
+      const { rows } = await csvParser.parseFileWithLimit(localPath, 1000, {
+        delimiter,
+        hasHeader: true,
+      });
+
+      // Extract unique values
+      const uniqueValues = new Set();
+      rows.forEach(row => {
+        if (row[columnName]) {
+          uniqueValues.add(String(row[columnName]).trim());
+        }
+      });
+
+      // Clean up temp file
+      await ftpService.deleteLocalFile(localPath);
+
+      res.json({
+        success: true,
+        values: Array.from(uniqueValues).slice(0, 100), // Limit to top 100 unique values
+        totalFound: uniqueValues.size,
+      });
+    } catch (parseError) {
+      // Clean up temp file on error
+      await ftpService.deleteLocalFile(localPath);
+      throw parseError;
+    }
+  } catch (error) {
+    logger.error('Error previewing CSV values:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to preview CSV values',
+    });
+  }
+});
+
 export default router;

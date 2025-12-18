@@ -18,6 +18,7 @@ import {
 } from '@shopify/polaris';
 import { useParams, useNavigate } from 'react-router-dom';
 import FieldMappingTable from '../components/FieldMappingTable';
+import ValueMappingTable from '../components/ValueMappingTable';
 import FullPageLoader from '../components/FullPageLoader';
 
 function FeedEdit() {
@@ -27,7 +28,7 @@ function FeedEdit() {
 
   // Wizard step state
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 2;
+  const totalSteps = 3;
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -251,6 +252,8 @@ function FeedEdit() {
         await fetchShopifyFields();
         setCurrentStep(2);
       }
+    } else if (currentStep === 2) {
+      setCurrentStep(3);
     }
   };
 
@@ -278,6 +281,33 @@ function FeedEdit() {
       ...formData,
       mappings: [...formData.mappings, mapping],
     });
+  };
+
+  // Fetch unique values for value mapping (Step 3)
+  const fetchUniqueValues = async (columnName) => {
+    try {
+      const shop = new URLSearchParams(window.location.search).get('shop') || sessionStorage.getItem('currentPageShop');
+      const response = await fetch(`/api/feeds/preview-csv-values?shop=${shop}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ftpConnectionId: formData.ftpConnection,
+          filePath: formData.file.path,
+          columnName: columnName,
+          delimiter: formData.file.delimiter,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch unique values');
+      }
+
+      return data.values || [];
+    } catch (error) {
+      console.error('Error fetching unique values:', error);
+      throw error;
+    }
   };
 
   const handleSubmit = async () => {
@@ -571,6 +601,22 @@ function FeedEdit() {
     </Card>
   );
 
+  // Render Step 3: Value Mapping
+  const renderStep3 = () => (
+    <Card>
+      <BlockStack gap="400">
+        <Text variant="headingMd">Step 3: Value Mapping (Optional)</Text>
+        <Text variant="bodySm" tone="subdued">
+          Translate specific CSV values to different Shopify values. For example, map color codes to color names.
+        </Text>
+        <ValueMappingTable
+          mappings={formData.mappings}
+          onUpdateMapping={handleMappingChange}
+          onFetchUniqueValues={fetchUniqueValues}
+        />
+      </BlockStack>
+    </Card>
+  );
 
   return (
     <Page
@@ -583,7 +629,10 @@ function FeedEdit() {
           <BlockStack gap="200">
             <InlineStack align="space-between">
               <Text variant="bodySm">Step {currentStep} of {totalSteps}</Text>
-              <Text variant="bodySm">{currentStep === 1 ? 'Configuration' : 'Field Mapping'}</Text>
+              <Text variant="bodySm">
+                {currentStep === 1 ? 'Configuration' :
+                  currentStep === 2 ? 'Field Mapping' : 'Value Mapping'}
+              </Text>
             </InlineStack>
             <ProgressBar progress={(currentStep / totalSteps) * 100} size="small" />
           </BlockStack>
@@ -599,6 +648,7 @@ function FeedEdit() {
         {/* Step content */}
         {currentStep === 1 && renderStep1()}
         {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
 
         {/* Navigation buttons */}
         <InlineStack align="space-between">
@@ -615,7 +665,7 @@ function FeedEdit() {
                 onClick={handleNextStep}
                 loading={loadingCsv || loadingFields}
               >
-                Next: Map Fields
+                {currentStep === 1 ? 'Next: Map Fields' : 'Next: Value Mapping'}
               </Button>
             )}
             {currentStep === totalSteps && (
