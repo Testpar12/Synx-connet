@@ -291,6 +291,11 @@ class ShopifySync {
       input.status = input.status.toUpperCase();
     }
 
+    // Remove published_scope - not a valid GraphQL ProductInput field
+    // This field was deprecated in newer Shopify API versions
+    delete input.published_scope;
+    delete input.published;
+
     try {
       const response = await client.request(mutation, {
         variables: { input },
