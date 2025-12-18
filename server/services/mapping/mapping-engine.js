@@ -10,9 +10,10 @@ class MappingEngine {
    * @param {Object} csvRow - CSV row data
    * @param {Array} mappings - Field mappings configuration
    * @param {Object} matchingConfig - Matching configuration
+   * @param {Array} valueMappings - Conditional value mappings (Step 3)
    * @returns {Object} Shopify product data
    */
-  transformRow(csvRow, mappings, matchingConfig) {
+  transformRow(csvRow, mappings, matchingConfig, valueMappings = []) {
     const productData = {
       product: {},
       metafields: [],
@@ -96,6 +97,49 @@ class MappingEngine {
         productData.metafields.push(metafield);
       }
     });
+
+    // Process Conditional Value Mappings (Step 3)
+    // These check source CSV values and write to different target metafields
+    if (valueMappings && valueMappings.length > 0) {
+      valueMappings.forEach((vm) => {
+        const sourceValue = csvRow[vm.sourceCsvColumn];
+
+        // Check if this row's source value matches the configured value
+        if (sourceValue !== undefined && String(sourceValue).trim() === String(vm.sourceValue).trim()) {
+          // Find the target field configuration from mappings
+          const targetMapping = mappings.find(m => m.shopifyField === vm.targetField);
+
+          if (targetMapping && targetMapping.fieldType === 'metafield') {
+            // Format the target value for the metafield type
+            const formattedValue = this.formatMetafieldValue(
+              vm.targetValue,
+              targetMapping.metafieldType
+            );
+
+            // Add or replace the metafield
+            const existingIndex = productData.metafields.findIndex(
+              mf => mf.namespace === targetMapping.metafieldNamespace &&
+                mf.key === targetMapping.metafieldKey
+            );
+
+            const metafield = {
+              namespace: targetMapping.metafieldNamespace,
+              key: targetMapping.metafieldKey,
+              type: targetMapping.metafieldType,
+              value: formattedValue,
+            };
+
+            if (existingIndex >= 0) {
+              productData.metafields[existingIndex] = metafield;
+            } else {
+              productData.metafields.push(metafield);
+            }
+
+            logger.info(`Value Mapping: Source '${vm.sourceCsvColumn}' = '${sourceValue}' -> Writing '${vm.targetValue}' to '${vm.targetField}'`);
+          }
+        }
+      });
+    }
 
     return productData;
   }

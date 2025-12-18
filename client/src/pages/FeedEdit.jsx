@@ -56,6 +56,7 @@ function FeedEdit() {
       type: 'sku',
     },
     mappings: [],
+    valueMappings: [],
     schedule: {
       enabled: false,
       frequency: 'daily',
@@ -601,18 +602,44 @@ function FeedEdit() {
     </Card>
   );
 
+  // Handle value mapping add
+  const handleAddValueMapping = (valueMapping) => {
+    setFormData(prev => ({
+      ...prev,
+      valueMappings: [
+        ...prev.valueMappings.filter(vm =>
+          !(vm.sourceField === valueMapping.sourceField &&
+            vm.targetField === valueMapping.targetField &&
+            vm.sourceValue === valueMapping.sourceValue)
+        ),
+        valueMapping
+      ]
+    }));
+  };
+
+  // Handle value mapping remove
+  const handleRemoveValueMapping = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      valueMappings: prev.valueMappings.filter((_, i) => i !== index)
+    }));
+  };
+
   // Render Step 3: Value Mapping
   const renderStep3 = () => (
     <Card>
       <BlockStack gap="400">
-        <Text variant="headingMd">Step 3: Value Mapping (Optional)</Text>
+        <Text variant="headingMd">Step 3: Conditional Value Mapping (Optional)</Text>
         <Text variant="bodySm" tone="subdued">
-          Translate specific CSV values to different Shopify values. For example, map color codes to color names.
+          Based on CSV values, write specific values to different Shopify metafields.
         </Text>
         <ValueMappingTable
           mappings={formData.mappings}
-          onUpdateMapping={handleMappingChange}
-          onFetchUniqueValues={fetchUniqueValues}
+          shopifyFields={shopifyFields}
+          csvSampleRows={csvSampleRows}
+          valueMappings={formData.valueMappings}
+          onAddValueMapping={handleAddValueMapping}
+          onRemoveValueMapping={handleRemoveValueMapping}
         />
       </BlockStack>
     </Card>

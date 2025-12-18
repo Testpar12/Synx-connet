@@ -239,7 +239,8 @@ class FeedProcessor {
         const productData = mappingEngine.transformRow(
           row,
           feed.mappings,
-          feed.matching
+          feed.matching,
+          feed.valueMappings || []
         );
 
         if (!productData.identifier.value) {
