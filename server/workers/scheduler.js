@@ -26,7 +26,7 @@ class FeedScheduler {
     // Check for feed updates every minute (active vs inactive, schedule changes)
     this.refreshInterval = setInterval(
       () => this.scheduleAllFeeds(),
-      60 * 1000 * 5 // Refresh every 5 minutes to catch unscheduled changes
+      60 * 1000 // Refresh every 1 minute to catch unscheduled changes
     );
 
     logger.info('Feed scheduler started');
