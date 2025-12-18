@@ -116,8 +116,13 @@ function FeedEdit() {
   }
 
   // Fetch CSV headers from FTP file
-  const fetchCsvHeaders = async () => {
-    if (!formData.ftpConnection || !formData.file.path) {
+  // Optional params allow calling this when editing a feed before formData state is updated
+  const fetchCsvHeaders = async (ftpConnectionId, filePath, delimiter) => {
+    const connId = ftpConnectionId || formData.ftpConnection;
+    const path = filePath || formData.file.path;
+    const delim = delimiter || formData.file.delimiter;
+
+    if (!connId || !path) {
       setError('Please select an FTP connection and enter a CSV file path');
       return false;
     }
@@ -131,9 +136,9 @@ function FeedEdit() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ftpConnectionId: formData.ftpConnection,
-          filePath: formData.file.path,
-          delimiter: formData.file.delimiter,
+          ftpConnectionId: connId,
+          filePath: path,
+          delimiter: delim,
         }),
       });
 
