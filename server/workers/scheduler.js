@@ -12,7 +12,6 @@ import logger from '../utils/logger.js';
 class FeedScheduler {
   constructor() {
     this.tasks = new Map();
-    this.checkInterval = null;
   }
 
   /**
@@ -21,43 +20,48 @@ class FeedScheduler {
   async start() {
     logger.info('Starting feed scheduler...');
 
-    // Check for due feeds every minute
-    this.checkInterval = setInterval(
-      () => this.checkDueFeeds(),
-      60 * 1000
-    );
+    // Load and schedule all active feeds
+    await this.scheduleAllFeeds();
 
-    // Initial check
-    await this.checkDueFeeds();
+    // Check for feed updates every minute (active vs inactive, schedule changes)
+    this.refreshInterval = setInterval(
+      () => this.scheduleAllFeeds(),
+      60 * 1000 * 5 // Refresh every 5 minutes to catch unscheduled changes
+    );
 
     logger.info('Feed scheduler started');
   }
 
   /**
-   * Check for feeds that are due to run
+   * Schedule all active feeds
    */
-  async checkDueFeeds() {
+  async scheduleAllFeeds() {
     try {
-      const now = new Date();
-
-      // Find all active feeds with scheduling enabled that are due
-      const dueFeeds = await Feed.find({
+      const feeds = await Feed.find({
         isActive: true,
         status: 'active',
         'schedule.enabled': true,
-        $or: [
-          { nextRunAt: { $lte: now } },
-          { nextRunAt: null },
-        ],
-      }).populate('shop');
+      });
 
-      logger.debug(`Found ${dueFeeds.length} due feeds`);
+      logger.debug(`Found ${feeds.length} active scheduled feeds`);
 
-      for (const feed of dueFeeds) {
-        await this.triggerFeed(feed);
+      const currentFeedIds = new Set(feeds.map(f => f._id.toString()));
+
+      // Remove tasks for feeds that are no longer active/scheduled
+      for (const [feedId, task] of this.tasks) {
+        if (!currentFeedIds.has(feedId)) {
+          task.stop();
+          this.tasks.delete(feedId);
+          logger.info(`Stopped scheduler for feed: ${feedId}`);
+        }
+      }
+
+      // Schedule or update tasks
+      for (const feed of feeds) {
+        await this.rescheduleFeed(feed._id, feed);
       }
     } catch (error) {
-      logger.error('Error checking due feeds:', error);
+      logger.error('Error scheduling feeds:', error);
     }
   }
 
@@ -79,7 +83,7 @@ class FeedScheduler {
         isPreview: false,
       });
 
-      // Calculate and update next run time
+      // Calculate and update next run time (for UI display only)
       feed.calculateNextRun();
       await feed.save();
 
@@ -93,9 +97,9 @@ class FeedScheduler {
    * Stop scheduler
    */
   stop() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
     }
 
     // Clear all cron tasks
@@ -106,41 +110,76 @@ class FeedScheduler {
   }
 
   /**
-   * Reschedule specific feed (if using cron-based approach)
+   * Reschedule specific feed
    */
-  async rescheduleFeed(feedId) {
+  async rescheduleFeed(feedId, feedData = null) {
     try {
-      const feed = await Feed.findById(feedId);
+      const feed = feedData || await Feed.findById(feedId);
 
       if (!feed || !feed.schedule.enabled) {
-        // Remove existing task if present
-        if (this.tasks.has(feedId)) {
-          this.tasks.get(feedId).stop();
-          this.tasks.delete(feedId);
+        if (this.tasks.has(feedId.toString())) {
+          this.tasks.get(feedId.toString()).stop();
+          this.tasks.delete(feedId.toString());
         }
         return;
       }
 
-      // Stop existing task if any
-      if (this.tasks.has(feedId)) {
-        this.tasks.get(feedId).stop();
-      }
+      // Generate cron expression based on frequency
+      let cronExpression = null;
+      let timezone = feed.schedule.timezone || 'UTC';
 
-      // Create new cron task for custom cron expressions
-      if (feed.schedule.frequency === 'custom' && feed.schedule.customCron) {
-        const task = cron.schedule(
-          feed.schedule.customCron,
-          async () => {
-            await this.triggerFeed(feed);
-          },
-          {
-            timezone: feed.schedule.timezone || 'UTC',
+      switch (feed.schedule.frequency) {
+        case 'hourly':
+          cronExpression = '0 * * * *'; // Top of every hour
+          break;
+        case 'every_6_hours':
+          cronExpression = '0 */6 * * *';
+          break;
+        case 'daily':
+          if (feed.schedule.time) {
+            const [hours, minutes] = feed.schedule.time.split(':');
+            cronExpression = `${parseInt(minutes)} ${parseInt(hours)} * * *`;
+          } else {
+            cronExpression = '0 0 * * *'; // Default midnight
           }
-        );
-
-        this.tasks.set(feedId, task);
-        logger.info(`Custom cron scheduled for feed: ${feedId}`);
+          break;
+        case 'weekly':
+          cronExpression = '0 0 * * 0'; // Sunday midnight
+          if (feed.schedule.time) {
+            const [hours, minutes] = feed.schedule.time.split(':');
+            cronExpression = `${parseInt(minutes)} ${parseInt(hours)} * * 0`;
+          }
+          break;
+        case 'custom':
+          cronExpression = feed.schedule.customCron;
+          break;
       }
+
+      if (!cronExpression) return;
+
+      // Check if task exists and if cron expression changed would be complex, 
+      // easiest is to always recreate reliable tasks.
+      // But we don't want to stop/start unnecessarily if nothing changed.
+      // For now, simpler is robust: recreate.
+
+      if (this.tasks.has(feedId.toString())) {
+        this.tasks.get(feedId.toString()).stop();
+      }
+
+      // Create new cron task
+      const task = cron.schedule(
+        cronExpression,
+        async () => {
+          await this.triggerFeed(feed);
+        },
+        {
+          timezone: timezone,
+        }
+      );
+
+      this.tasks.set(feedId.toString(), task);
+      logger.debug(`Scheduled feed ${feedId} with cron: ${cronExpression} (${timezone})`);
+
     } catch (error) {
       logger.error(`Error rescheduling feed ${feedId}:`, error);
     }

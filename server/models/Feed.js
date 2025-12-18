@@ -269,6 +269,27 @@ feedSchema.methods.calculateNextRun = function () {
   const now = new Date();
   let nextRun = new Date();
 
+  // Helper to adjust for timezone offset
+  const adjustForTimezone = (date, timezone) => {
+    if (!timezone || timezone === 'UTC') return date;
+    try {
+      // Get the offset between server time (UTC) and target timezone
+      // We use current date to get an approximate offset (ignoring DST future changes for UI simplicity)
+      const targetTimeStr = new Date().toLocaleString('en-US', { timeZone: timezone });
+      const targetDate = new Date(targetTimeStr);
+      const serverDate = new Date();
+
+      // Calculate offset in milliseconds
+      // If target is ahead (e.g. +5:30), diff is positive.
+      // To schedule "00:00 Target Time" on a UTC server, we need "00:00 - Offset".
+      const offset = targetDate - serverDate;
+
+      return new Date(date.getTime() - offset);
+    } catch (e) {
+      return date;
+    }
+  };
+
   switch (this.schedule.frequency) {
     case 'hourly':
       nextRun.setHours(now.getHours() + 1);
@@ -278,7 +299,12 @@ feedSchema.methods.calculateNextRun = function () {
       break;
     case 'daily':
       const [hours, minutes] = this.schedule.time.split(':');
+      // Set time in UTC first
       nextRun.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      // Adjust back to UTC from Target Timezone
+      nextRun = adjustForTimezone(nextRun, this.schedule.timezone);
+
       if (nextRun <= now) {
         nextRun.setDate(nextRun.getDate() + 1);
       }
