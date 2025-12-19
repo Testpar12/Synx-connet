@@ -64,6 +64,7 @@ function FeedEdit() {
     },
     options: {
       skipUnchangedFile: true,
+      skipUnchangedRows: false,
       createMissingMetafields: true,
       updateExisting: true,
       createNew: true,
@@ -477,6 +478,18 @@ function FeedEdit() {
               setFormData({
                 ...formData,
                 options: { ...formData.options, skipUnchangedFile: value },
+              })
+            }
+          />
+
+          <Checkbox
+            label="Skip unchanged rows (faster syncs - caches row data)"
+            helpText="Skips rows that haven't changed since last successful sync. Recommended for large feeds."
+            checked={formData.options.skipUnchangedRows}
+            onChange={(value) =>
+              setFormData({
+                ...formData,
+                options: { ...formData.options, skipUnchangedRows: value },
               })
             }
           />

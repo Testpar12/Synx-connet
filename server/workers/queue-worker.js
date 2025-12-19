@@ -17,6 +17,7 @@ import FtpConnection from '../models/FtpConnection.js';
 import Shop from '../models/Shop.js';
 import Job from '../models/Job.js';
 import JobRow from '../models/JobRow.js';
+import RowCache from '../models/RowCache.js';
 
 /**
  * Feed Processing Worker
@@ -341,6 +342,31 @@ class FeedProcessor {
           }
         } else {
           // Real sync
+
+          // ============================================
+          // SKIP UNCHANGED ROWS (Row-Level Caching)
+          // Check if row data has changed since last successful sync
+          // ============================================
+          if (feed.options.skipUnchangedRows) {
+            const currentHash = RowCache.generateHash(row);
+            const cacheCheck = await RowCache.checkRow(
+              feed._id,
+              productData.identifier.value,
+              currentHash
+            );
+
+            if (!cacheCheck.changed) {
+              // Row unchanged - skip sync
+              results.skipped++;
+              results.unchangedSkipped = (results.unchangedSkipped || 0) + 1;
+              await this.logRow(jobRecord, rowNumber, row, 'skip', {
+                reason: 'Row unchanged (cached)',
+                lastSyncedAt: cacheCheck.cache?.lastSyncedAt,
+              });
+              continue;
+            }
+          }
+
           const syncResult = await shopifySync.syncProduct(
             shop,
             productData,
@@ -363,6 +389,22 @@ class FeedProcessor {
             productId: syncResult.product?.id,
             changes: syncResult.changes,
           });
+
+          // ============================================
+          // UPDATE ROW CACHE after successful sync
+          // Only cache after successful sync so incomplete jobs
+          // will process uncached rows on resume
+          // ============================================
+          if (feed.options.skipUnchangedRows && syncResult.product) {
+            const currentHash = RowCache.generateHash(row);
+            await RowCache.upsertRow(
+              feed._id,
+              productData.identifier.value,
+              productData.identifier.type,
+              currentHash,
+              syncResult.product.id
+            );
+          }
 
           // Rate limiting
           await shopifySync.rateLimit();

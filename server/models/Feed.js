@@ -175,6 +175,10 @@ const feedSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
+      skipUnchangedRows: {
+        type: Boolean,
+        default: false, // Off by default, user can enable
+      },
       createMissingMetafields: {
         type: Boolean,
         default: true,
