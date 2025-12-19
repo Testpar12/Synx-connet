@@ -461,13 +461,15 @@ router.post('/preview-csv-headers', async (req, res) => {
     try {
       // Parse rows to get headers and sample data
       // Increased to 500 rows to capture more unique values for value mapping in Step 3
-      const { headers, rows } = await csvParser.parseFileWithLimit(localPath, 500, {
+      const { headers, rows } = await csvParser.parseFileWithLimit(localPath, 50000, {
         delimiter,
         hasHeader: true,
       });
 
       // Clean up temp file
       await ftpService.deleteLocalFile(localPath);
+
+      logger.info(`CSV preview parsed: ${rows.length} rows for value mapping`);
 
       res.json({
         success: true,
