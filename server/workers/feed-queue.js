@@ -2,6 +2,7 @@ import Bull from 'bull';
 import redisClient from '../config/redis.js';
 import { config } from '../config/app.js';
 import logger from '../utils/logger.js';
+import Job from '../models/Job.js';
 
 /**
  * Feed Processing Queue
@@ -27,14 +28,14 @@ class FeedQueue {
         lockDuration: 10 * 60 * 1000, // 10 minutes
 
         // How often to renew the lock (should be less than lockDuration)
-        lockRenewTime: 2 * 60 * 1000, // 2 minutes
+        lockRenewTime: 5 * 60 * 1000, // 5 minutes
 
         // How often to check for stalled jobs (default: 30000ms = 30s)
-        // Increased to 2 minutes
-        stalledInterval: 2 * 60 * 1000, // 2 minutes
+        // Increased to 5 minutes
+        stalledInterval: 5 * 60 * 1000, // 5 minutes
 
         // Maximum number of times a job can be stalled before it fails
-        maxStalledCount: 3,
+        maxStalledCount: 5,
       },
       defaultJobOptions: {
         attempts: config.queue.maxRetries,
@@ -44,8 +45,8 @@ class FeedQueue {
         },
         removeOnComplete: 100, // Keep last 100 completed jobs
         removeOnFail: 500, // Keep last 500 failed jobs
-        // Timeout for job processing (30 minutes max)
-        timeout: 30 * 60 * 1000,
+        // Timeout for job processing - increased to 4 hours for large feeds
+        timeout: 4 * 60 * 60 * 1000, // 4 hours
       },
     });
 
@@ -170,11 +171,53 @@ class FeedQueue {
       });
     });
 
-    this.queue.on('failed', (job, error) => {
+    this.queue.on('failed', async (job, error) => {
       logger.error(`Job failed: ${job.id}`, {
         feedId: job.data.feedId,
         error: error.message,
       });
+
+      // ============================================
+      // TIMEOUT RESUME LOGIC
+      // If the job failed due to timeout and has made progress,
+      // mark it as 'interrupted' for automatic resume
+      // ============================================
+      try {
+        const isTimeout = error.message?.includes('timed out') ||
+          error.message?.includes('Promise timed out');
+
+        if (isTimeout) {
+          // Find the job record in database
+          const jobRecord = await Job.findOne({ queueJobId: job.id.toString() });
+
+          if (jobRecord && jobRecord.progress.current > 0) {
+            // Job has made progress - mark as interrupted for resume
+            jobRecord.status = 'interrupted';
+            jobRecord.lastProcessedRow = jobRecord.progress.current;
+            jobRecord.error = {
+              message: `Job timed out at row ${jobRecord.progress.current}. Will be resumed automatically.`,
+              code: 'JOB_TIMEOUT_RESUME',
+              timestamp: new Date(),
+            };
+            await jobRecord.save();
+
+            logger.info(`Job ${job.id} timed out with progress at row ${jobRecord.progress.current}. Marked for resume.`);
+
+            // Queue for automatic resume
+            await this.addJob({
+              feedId: job.data.feedId,
+              shopId: job.data.shopId,
+              type: job.data.type,
+              isPreview: job.data.isPreview,
+              resumeJobId: jobRecord._id.toString(),
+            });
+
+            logger.info(`Resume job queued for ${jobRecord._id}`);
+          }
+        }
+      } catch (resumeError) {
+        logger.error('Error setting up job resume:', resumeError);
+      }
     });
 
     this.queue.on('stalled', (job) => {

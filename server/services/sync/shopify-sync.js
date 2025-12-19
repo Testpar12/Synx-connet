@@ -3,6 +3,53 @@ import Shop from '../../models/Shop.js';
 import logger from '../../utils/logger.js';
 
 /**
+ * Retry utility for handling transient Shopify errors
+ * Retries on 502, 503, 429, and timeout errors with exponential backoff
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxRetries - Maximum number of retries (default: 3)
+ * @param {number} baseDelay - Base delay in ms (default: 1000)
+ * @returns {Promise} Result of the function
+ */
+async function withRetry(fn, maxRetries = 3, baseDelay = 1000) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Check if this is a retryable error
+      const isRetryable =
+        error.response?.code === 502 ||
+        error.response?.code === 503 ||
+        error.response?.code === 429 ||
+        error.message?.includes('Bad Gateway') ||
+        error.message?.includes('Service Unavailable') ||
+        error.message?.includes('ETIMEDOUT') ||
+        error.message?.includes('ECONNRESET') ||
+        error.message?.includes('socket hang up') ||
+        error.message?.includes('timeout');
+
+      if (!isRetryable || attempt > maxRetries) {
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff (1s, 2s, 4s, 8s, ...)
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      logger.warn(`Retryable error on attempt ${attempt}/${maxRetries + 1}, retrying in ${delay}ms:`, {
+        error: error.message,
+        code: error.response?.code,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Shopify Sync Service
  * Handles product creation, updates, and metafield management
  */
@@ -57,8 +104,10 @@ class ShopifySync {
     `;
 
     try {
-      const response = await client.request(query, {
-        variables: { handle },
+      const response = await withRetry(async () => {
+        return await client.request(query, {
+          variables: { handle },
+        });
       });
 
       return response.data.productByHandle;
@@ -111,8 +160,10 @@ class ShopifySync {
     `;
 
     try {
-      const response = await client.request(query, {
-        variables: { query: `sku:${sku}` },
+      const response = await withRetry(async () => {
+        return await client.request(query, {
+          variables: { query: `sku:${sku}` },
+        });
       });
 
       const products = response.data.products.edges;
@@ -173,8 +224,10 @@ class ShopifySync {
     }
 
     try {
-      const response = await client.request(createMutation, {
-        variables: { input },
+      const response = await withRetry(async () => {
+        return await client.request(createMutation, {
+          variables: { input },
+        });
       });
 
       const { product, userErrors } = response.data.productCreate;
@@ -339,8 +392,10 @@ class ShopifySync {
     delete input.updatedAt;
 
     try {
-      const response = await client.request(mutation, {
-        variables: { input },
+      const response = await withRetry(async () => {
+        return await client.request(mutation, {
+          variables: { input },
+        });
       });
 
       const { product, userErrors } = response.data.productUpdate;
