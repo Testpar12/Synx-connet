@@ -16,6 +16,26 @@ class FeedQueue {
         password: config.redis.password || undefined,
         db: config.redis.db,
       },
+      // ============================================
+      // STALL PREVENTION SETTINGS
+      // These settings prevent jobs from being incorrectly marked as "stalled"
+      // when processing large feeds with Shopify API rate limits.
+      // ============================================
+      settings: {
+        // How long a worker can hold a lock on a job (default: 30000ms = 30s)
+        // Increased to 10 minutes to handle large feeds with rate limiting
+        lockDuration: 10 * 60 * 1000, // 10 minutes
+
+        // How often to renew the lock (should be less than lockDuration)
+        lockRenewTime: 2 * 60 * 1000, // 2 minutes
+
+        // How often to check for stalled jobs (default: 30000ms = 30s)
+        // Increased to 2 minutes
+        stalledInterval: 2 * 60 * 1000, // 2 minutes
+
+        // Maximum number of times a job can be stalled before it fails
+        maxStalledCount: 3,
+      },
       defaultJobOptions: {
         attempts: config.queue.maxRetries,
         backoff: {
@@ -24,6 +44,8 @@ class FeedQueue {
         },
         removeOnComplete: 100, // Keep last 100 completed jobs
         removeOnFail: 500, // Keep last 500 failed jobs
+        // Timeout for job processing (30 minutes max)
+        timeout: 30 * 60 * 1000,
       },
     });
 

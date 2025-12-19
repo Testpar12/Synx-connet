@@ -146,13 +146,14 @@ class FeedProcessor {
       jobRecord.progress.total = parsedData.rows.length;
       await jobRecord.save();
 
-      // Process rows
+      // Process rows - pass Bull job for progress updates to prevent stalling
       const results = await this.processRows(
         parsedData.rows,
         feed,
         shop,
         jobRecord,
-        isPreview
+        isPreview,
+        job // Pass Bull job for progress updates
       );
 
       // Update job completion
@@ -208,8 +209,14 @@ class FeedProcessor {
 
   /**
    * Process CSV rows
+   * @param {Array} rows - CSV rows to process
+   * @param {Object} feed - Feed configuration
+   * @param {Object} shop - Shop document
+   * @param {Object} jobRecord - Job database record
+   * @param {boolean} isPreview - Whether this is a preview run
+   * @param {Object} bullJob - Bull job object for progress updates
    */
-  async processRows(rows, feed, shop, jobRecord, isPreview) {
+  async processRows(rows, feed, shop, jobRecord, isPreview, bullJob = null) {
     const results = {
       totalRows: rows.length,
       processed: 0,
@@ -331,6 +338,13 @@ class FeedProcessor {
         // It adds DB overhead but ensures "Cancelled" state is caught.
         // Actually, we already queried the DB for cancellation above. We can update progress too.
         await jobRecord.updateProgress(rowNumber, rows.length);
+
+        // IMPORTANT: Update Bull job progress to keep the lock alive and prevent stalling
+        // This tells Bull that the worker is still active and processing
+        if (bullJob && rowNumber % 10 === 0) {
+          const progressPercent = Math.round((rowNumber / rows.length) * 100);
+          await bullJob.progress(progressPercent);
+        }
       } catch (error) {
         results.failed++;
         logger.error(`Error processing row ${rowNumber}:`, error);
