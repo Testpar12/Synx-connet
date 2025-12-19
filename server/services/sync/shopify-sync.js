@@ -280,21 +280,63 @@ class ShopifySync {
       ...productData,
     };
 
-    // Rename body_html to descriptionHtml recursively if present
-    if (input.body_html) {
+    // ============================================
+    // FIELD SANITIZATION FOR SHOPIFY GRAPHQL API
+    // The Shopify GraphQL API expects camelCase field names,
+    // but our internal mapping uses snake_case for compatibility.
+    // This block converts all known fields to their GraphQL equivalents.
+    // ============================================
+
+    // body_html → descriptionHtml
+    if (input.body_html !== undefined) {
       input.descriptionHtml = input.body_html;
       delete input.body_html;
     }
 
-    // Convert status to uppercase if present
+    // product_type → productType
+    if (input.product_type !== undefined) {
+      input.productType = input.product_type;
+      delete input.product_type;
+    }
+
+    // template_suffix → templateSuffix
+    if (input.template_suffix !== undefined) {
+      input.templateSuffix = input.template_suffix;
+      delete input.template_suffix;
+    }
+
+    // Convert status to uppercase if present (GraphQL requires ACTIVE, DRAFT, or ARCHIVED)
     if (input.status) {
       input.status = input.status.toUpperCase();
     }
 
-    // Remove published_scope - not a valid GraphQL ProductInput field
-    // This field was deprecated in newer Shopify API versions
+    // ============================================
+    // REMOVE INVALID FIELDS
+    // These fields are not valid in ProductInput and will cause GraphQL errors
+    // ============================================
+
+    // published_scope - Use publications API instead
     delete input.published_scope;
+    delete input.publishedScope;
+
+    // published - Not a valid field
     delete input.published;
+
+    // images - Handled separately via productCreateMedia mutation
+    delete input.images;
+    delete input.image;
+
+    // variants - Handled separately via productVariantsBulkUpdate
+    delete input.variants;
+
+    // metafields - Handled separately via metafieldsSet mutation
+    delete input.metafields;
+
+    // created_at / updated_at - Read-only fields
+    delete input.created_at;
+    delete input.updated_at;
+    delete input.createdAt;
+    delete input.updatedAt;
 
     try {
       const response = await client.request(mutation, {
