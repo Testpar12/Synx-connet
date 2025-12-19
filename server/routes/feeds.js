@@ -2,6 +2,7 @@ import express from 'express';
 import Joi from 'joi';
 import validate from '../middleware/validate.js';
 import Feed from '../models/Feed.js';
+import Job from '../models/Job.js';
 import FtpConnection from '../models/FtpConnection.js';
 import feedQueue from '../workers/feed-queue.js';
 import FtpService from '../services/ftp/ftp-service.js';
@@ -310,6 +311,20 @@ router.post('/:id/process', async (req, res) => {
       return res.status(404).json({
         error: 'Not Found',
         message: 'Feed not found',
+      });
+    }
+
+    // Check for existing running job to prevent duplicates
+    const existingJob = await Job.findOne({
+      feed: feed._id,
+      status: { $in: ['pending', 'processing'] },
+    });
+
+    if (existingJob) {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: `A job is already ${existingJob.status} for this feed. Please wait for it to complete.`,
+        existingJobId: existingJob._id,
       });
     }
 

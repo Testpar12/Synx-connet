@@ -28,18 +28,20 @@ class FeedProcessor {
    * @param {Object} job - Bull job
    */
   async process(job) {
-    const { feedId, shopId, type, isPreview, previewRowLimit } = job.data;
+    const { feedId, shopId, type, isPreview, previewRowLimit, resumeJobId } = job.data;
 
     logger.info(`Processing feed job: ${job.id}`, {
       feedId,
       shopId,
       type,
       isPreview,
+      resumeJobId: resumeJobId || null,
     });
 
     let jobRecord = null;
     let ftpService = null;
     let localFilePath = null;
+    let startRow = 0; // For resume: the row to start processing from
 
     try {
       // Load feed and shop
@@ -56,18 +58,45 @@ class FeedProcessor {
         throw new Error(`Shop not found: ${shopId}`);
       }
 
-      // Create job record
-      jobRecord = new Job({
-        feed: feed._id,
-        shop: shop._id,
-        type,
-        isPreview,
-        status: 'pending',
-        queueJobId: job.id,
-        triggeredBy: type === 'manual' ? 'user' : 'scheduler',
-      });
-      await jobRecord.save();
-      await jobRecord.markStarted();
+      // Check if this is a resume job
+      if (resumeJobId) {
+        // Resume an interrupted job
+        jobRecord = await Job.findById(resumeJobId);
+
+        if (!jobRecord) {
+          throw new Error(`Cannot resume: Job ${resumeJobId} not found`);
+        }
+
+        if (jobRecord.status !== 'interrupted') {
+          throw new Error(`Cannot resume: Job ${resumeJobId} is in ${jobRecord.status} status, not interrupted`);
+        }
+
+        // Set start row from the last processed row
+        startRow = jobRecord.lastProcessedRow || 0;
+
+        // Update job for resume
+        jobRecord.status = 'processing';
+        jobRecord.queueJobId = job.id;
+        jobRecord.resumeCount = (jobRecord.resumeCount || 0) + 1;
+        jobRecord.resumedAt = [...(jobRecord.resumedAt || []), new Date()];
+        jobRecord.error = null; // Clear previous error
+        await jobRecord.save();
+
+        logger.info(`Resuming job ${resumeJobId} from row ${startRow + 1}`);
+      } else {
+        // Create new job record
+        jobRecord = new Job({
+          feed: feed._id,
+          shop: shop._id,
+          type,
+          isPreview,
+          status: 'pending',
+          queueJobId: job.id,
+          triggeredBy: type === 'manual' ? 'user' : 'scheduler',
+        });
+        await jobRecord.save();
+        await jobRecord.markStarted();
+      }
 
       // Download CSV file
       ftpService = new FtpService();
@@ -147,13 +176,15 @@ class FeedProcessor {
       await jobRecord.save();
 
       // Process rows - pass Bull job for progress updates to prevent stalling
+      // For resume jobs, startRow will be > 0 and rows before it will be skipped
       const results = await this.processRows(
         parsedData.rows,
         feed,
         shop,
         jobRecord,
         isPreview,
-        job // Pass Bull job for progress updates
+        job, // Pass Bull job for progress updates
+        startRow // Pass startRow for resume support
       );
 
       // Update job completion
@@ -215,8 +246,9 @@ class FeedProcessor {
    * @param {Object} jobRecord - Job database record
    * @param {boolean} isPreview - Whether this is a preview run
    * @param {Object} bullJob - Bull job object for progress updates
+   * @param {number} startRow - Row to start from (for resume support, 0-indexed)
    */
-  async processRows(rows, feed, shop, jobRecord, isPreview, bullJob = null) {
+  async processRows(rows, feed, shop, jobRecord, isPreview, bullJob = null, startRow = 0) {
     const results = {
       totalRows: rows.length,
       processed: 0,
@@ -226,11 +258,27 @@ class FeedProcessor {
       failed: 0,
     };
 
+    // If resuming, restore previous results
+    if (startRow > 0 && jobRecord.results) {
+      results.processed = jobRecord.results.processed || 0;
+      results.created = jobRecord.results.created || 0;
+      results.updated = jobRecord.results.updated || 0;
+      results.skipped = jobRecord.results.skipped || 0;
+      results.failed = jobRecord.results.failed || 0;
+
+      logger.info(`Resuming from row ${startRow + 1} with previous results: processed=${results.processed}, updated=${results.updated}`);
+    }
+
     const batchSize = feed.options.batchSize || 100;
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNumber = i + 1;
+
+      // RESUME SUPPORT: Skip rows that have already been processed
+      if (i < startRow) {
+        continue; // Already processed this row in a previous run
+      }
 
       try {
         // Apply filters
@@ -338,6 +386,14 @@ class FeedProcessor {
         // It adds DB overhead but ensures "Cancelled" state is caught.
         // Actually, we already queried the DB for cancellation above. We can update progress too.
         await jobRecord.updateProgress(rowNumber, rows.length);
+
+        // RESUME SUPPORT: Update lastProcessedRow and save results periodically
+        // This enables resuming from this point if the job is interrupted
+        if (rowNumber % 50 === 0) { // Save every 50 rows
+          jobRecord.lastProcessedRow = i; // 0-indexed row number
+          jobRecord.results = { ...results };
+          await jobRecord.save();
+        }
 
         // IMPORTANT: Update Bull job progress to keep the lock alive and prevent stalling
         // This tells Bull that the worker is still active and processing

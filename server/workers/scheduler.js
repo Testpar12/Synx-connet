@@ -3,6 +3,7 @@ import database from '../config/database.js';
 import redisClient from '../config/redis.js';
 import feedQueue from './feed-queue.js';
 import Feed from '../models/Feed.js';
+import Job from '../models/Job.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -20,6 +21,9 @@ class FeedScheduler {
   async start() {
     logger.info('Starting feed scheduler...');
 
+    // Cleanup any stale jobs from previous runs
+    await this.cleanupStaleJobs();
+
     // Load and schedule all active feeds
     await this.scheduleAllFeeds();
 
@@ -30,6 +34,69 @@ class FeedScheduler {
     );
 
     logger.info('Feed scheduler started');
+  }
+
+  /**
+   * Cleanup stale jobs that are stuck in "processing" status
+   * This can happen if the worker crashes or the server restarts
+   * Jobs with progress will be marked as "interrupted" and auto-resumed
+   */
+  async cleanupStaleJobs() {
+    try {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
+
+      // Find jobs that have been stuck in "processing" for more than 1 hour
+      const staleJobs = await Job.find({
+        status: 'processing',
+        updatedAt: { $lt: oneHourAgo },
+      }).populate('feed');
+
+      if (staleJobs.length > 0) {
+        logger.warn(`Found ${staleJobs.length} stale jobs stuck in processing status`);
+
+        for (const job of staleJobs) {
+          // If job has made progress, mark as interrupted for resume
+          if (job.progress.current > 0) {
+            job.status = 'interrupted';
+            job.lastProcessedRow = job.progress.current;
+            job.error = {
+              message: `Job interrupted at row ${job.progress.current}. Will be resumed.`,
+              code: 'JOB_INTERRUPTED',
+              timestamp: new Date(),
+            };
+            await job.save();
+            logger.info(`Marked job ${job._id} as interrupted at row ${job.progress.current}. Queuing for resume...`);
+
+            // Auto-queue for resume if the feed is still active
+            if (job.feed && job.feed.isActive) {
+              await feedQueue.addJob({
+                feedId: job.feed._id.toString(),
+                shopId: job.shop.toString(),
+                type: job.type,
+                isPreview: job.isPreview,
+                resumeJobId: job._id.toString(), // Link to the interrupted job
+              });
+              logger.info(`Queued resume job for interrupted job ${job._id}`);
+            }
+          } else {
+            // No progress made, mark as failed
+            job.status = 'failed';
+            job.completedAt = new Date();
+            job.error = {
+              message: 'Job stalled with no progress and was marked as failed during cleanup',
+              code: 'STALE_JOB_CLEANUP',
+              timestamp: new Date(),
+            };
+            await job.save();
+            logger.info(`Marked stale job ${job._id} as failed (no progress)`);
+          }
+        }
+      } else {
+        logger.info('No stale jobs found during cleanup');
+      }
+    } catch (error) {
+      logger.error('Error cleaning up stale jobs:', error);
+    }
   }
 
   /**
@@ -74,6 +141,20 @@ class FeedScheduler {
         name: feed.name,
         frequency: feed.schedule.frequency,
       });
+
+      // ============================================
+      // DUPLICATE JOB PREVENTION
+      // Check if there's already a pending or processing job for this feed
+      // ============================================
+      const existingJob = await Job.findOne({
+        feed: feed._id,
+        status: { $in: ['pending', 'processing'] },
+      });
+
+      if (existingJob) {
+        logger.warn(`Skipping scheduled job for feed ${feed._id} - existing job ${existingJob._id} is still ${existingJob.status}`);
+        return;
+      }
 
       // Add job to queue
       await feedQueue.addJob({

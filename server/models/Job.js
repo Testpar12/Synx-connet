@@ -32,7 +32,7 @@ const jobSchema = new mongoose.Schema(
     // Job status
     status: {
       type: String,
-      enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
+      enum: ['pending', 'processing', 'completed', 'failed', 'cancelled', 'interrupted'],
       default: 'pending',
       index: true,
     },
@@ -108,6 +108,19 @@ const jobSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+    },
+
+    // Resume support - tracks the last successfully processed row
+    lastProcessedRow: {
+      type: Number,
+      default: 0,
+    },
+
+    // Resume tracking
+    resumedAt: [Date], // Array of timestamps when job was resumed
+    resumeCount: {
+      type: Number,
+      default: 0,
     },
 
     // Bull queue job ID
