@@ -85,12 +85,12 @@ class CsvParser {
       let headers = [];
       let rowCount = 0;
 
-      // Add safety timeout
+      // Add safety timeout - increased to 60 seconds for large files (50k+ rows)
       const timeout = setTimeout(() => {
-        logger.warn('CSV parsing timed out, returning what we have');
+        logger.warn('CSV parsing timed out after 60 seconds, returning what we have');
         parser.destroy();
         resolve({ headers, rows });
-      }, 5000);
+      }, 60000);
 
       const parser = fs
         .createReadStream(filePath, { encoding })
