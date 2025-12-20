@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.js",
+      "src": "server/vercel-handler.js",
       "use": "@vercel/node"
     },
     {
@@ -16,7 +16,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "dest": "/server/vercel-handler.js"
     },
     {
       "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot))",
@@ -31,7 +31,7 @@
     "NODE_ENV": "production"
   },
   "functions": {
-    "api/index.js": {
+    "server/vercel-handler.js": {
       "maxDuration": 60,
       "memory": 1024
     }

@@ -2,7 +2,7 @@
  * Vercel Serverless Function Handler
  * This wraps the Express app to work with Vercel's serverless functions
  */
-import App from '../server/app.js';
+import App from './app.js';
 
 let appInstance = null;
 let appExpress = null;
