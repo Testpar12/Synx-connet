@@ -16,6 +16,7 @@ import ftpRoutes from './routes/ftp-connections.js';
 import jobRoutes from './routes/jobs.js';
 import shopRoutes from './routes/shops.js';
 import shopifyFieldsRoutes from './routes/shopify-fields.js';
+import Shop from './models/Shop.js';
 
 /**
  * Main Express Application
@@ -107,7 +108,7 @@ class App {
     // Health check
     this.app.get('/health', async (req, res) => {
       try {
-        const shopCount = await database.connection.collection('shops').countDocuments();
+        const shopCount = await Shop.countDocuments();
         res.json({
           status: 'ok',
           environment: config.env,

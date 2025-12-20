@@ -15,6 +15,12 @@ class Database {
    */
   async connect() {
     try {
+      // If already connected, return existing connection
+      if (mongoose.connection.readyState === 1) {
+        this.connection = mongoose.connection;
+        return this.connection;
+      }
+
       const options = {
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,

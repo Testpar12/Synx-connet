@@ -10,6 +10,7 @@
     "client:dev": "cd client && npm run dev",
     "server": "node server/index.js",
     "build": "cd client && npm install && npm run build",
+    "vercel-build": "npm run build",
     "start": "npm run server",
     "start:prod": "concurrently \"npm run server\" \"npm run worker\" \"npm run scheduler\"",
     "worker": "node server/workers/queue-worker.js",
