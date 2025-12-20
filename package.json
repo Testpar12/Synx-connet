@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run worker:dev\" \"npm run scheduler:dev\" \"npm run client:dev\"",
-    "server:dev": "nodemon server/index.js",
+    "server:dev": "nodemon server/app.js",
     "client:dev": "cd client && npm run dev",
     "server": "node server/app.js",
     "build": "cd client && npm install && npm run build",
