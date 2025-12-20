@@ -29,12 +29,6 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "server/vercel-handler.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
   }
 }
 
